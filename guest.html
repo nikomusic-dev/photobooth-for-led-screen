@@ -1,0 +1,251 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Photobooth</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    background: #0a0a0a;
+    color: white;
+    font-family: -apple-system, sans-serif;
+    height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+  }
+  #camera-view, #preview-view {
+    width: 100%;
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    position: relative;
+  }
+  #preview-view { display: none; }
+  video, #photo-canvas, #preview-img {
+    width: 100%;
+    max-height: 75vh;
+    object-fit: cover;
+    border-radius: 12px;
+  }
+  #face-overlay {
+    position: absolute;
+    top: 0; left: 0;
+    width: 100%; height: 75vh;
+    pointer-events: none;
+  }
+  .controls {
+    display: flex;
+    gap: 20px;
+    margin-top: 20px;
+    align-items: center;
+  }
+  button {
+    background: #ff4d8d;
+    color: white;
+    border: none;
+    border-radius: 50px;
+    padding: 16px 28px;
+    font-size: 16px;
+    font-weight: 600;
+    cursor: pointer;
+  }
+  #switch-cam {
+    background: #333;
+    border-radius: 50%;
+    width: 50px;
+    height: 50px;
+    padding: 0;
+    font-size: 20px;
+  }
+  #shutter {
+    width: 70px;
+    height: 70px;
+    border-radius: 50%;
+    background: white;
+    border: 4px solid #ff4d8d;
+  }
+  #caption-input {
+    width: 90%;
+    max-width: 400px;
+    margin-top: 16px;
+    padding: 12px;
+    border-radius: 8px;
+    border: none;
+    text-align: center;
+    font-size: 16px;
+  }
+  #status-msg {
+    margin-top: 10px;
+    font-size: 14px;
+    color: #ff4d8d;
+    min-height: 20px;
+  }
+  #send-btn:disabled { background: #555; }
+</style>
+</head>
+<body>
+
+<div id="camera-view">
+  <div style="position: relative; width: 100%;">
+    <video id="video" autoplay playsinline muted></video>
+    <svg id="face-overlay"></svg>
+  </div>
+  <div class="controls">
+    <button id="switch-cam">&#x21BB;</button>
+    <button id="shutter"></button>
+    <div style="width: 50px;"></div>
+  </div>
+  <div id="status-msg">Place ton visage dans le cadre</div>
+</div>
+
+<div id="preview-view">
+  <img id="preview-img" />
+  <input id="caption-input" maxlength="20" placeholder="Ton prénom (optionnel)" />
+  <div class="controls">
+    <button id="retake-btn" style="background:#333;">Reprendre</button>
+    <button id="send-btn">Envoyer</button>
+  </div>
+  <div id="status-msg2" style="margin-top:10px;"></div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/@mediapipe/face_detection/face_detection.js"></script>
+<script>
+const SERVER_URL = "https://niko-photobooth-for-led-screen.onrender.com";
+
+let currentStream = null;
+let facingMode = "user";
+let faceDetected = false;
+let capturedBlob = null;
+
+const video = document.getElementById("video");
+const canvas = document.createElement("canvas");
+const overlay = document.getElementById("face-overlay");
+const statusMsg = document.getElementById("status-msg");
+const shutterBtn = document.getElementById("shutter");
+
+async function startCamera() {
+  if (currentStream) {
+    currentStream.getTracks().forEach(t => t.stop());
+  }
+  try {
+    currentStream = await navigator.mediaDevices.getUserMedia({
+      video: { facingMode: facingMode },
+      audio: false
+    });
+    video.srcObject = currentStream;
+  } catch (err) {
+    statusMsg.textContent = "Impossible d'accéder à la caméra.";
+  }
+}
+
+document.getElementById("switch-cam").addEventListener("click", () => {
+  facingMode = facingMode === "user" ? "environment" : "user";
+  startCamera();
+});
+
+const faceDetection = new FaceDetection({
+  locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/face_detection/${file}`
+});
+faceDetection.setOptions({ model: "short", minDetectionConfidence: 0.6 });
+
+faceDetection.onResults((results) => {
+  overlay.innerHTML = "";
+  faceDetected = results.detections && results.detections.length > 0;
+  if (faceDetected) {
+    statusMsg.textContent = "Visage détecté, tu peux prendre la photo !";
+    results.detections.forEach(det => {
+      const box = det.boundingBox;
+      const cx = box.xCenter * 100, cy = box.yCenter * 100;
+      const rx = (box.width / 2) * 100, ry = (box.height / 2) * 100;
+      const ellipse = document.createElementNS("http://www.w3.org/2000/svg", "ellipse");
+      ellipse.setAttribute("cx", cx + "%");
+      ellipse.setAttribute("cy", cy + "%");
+      ellipse.setAttribute("rx", rx + "%");
+      ellipse.setAttribute("ry", ry + "%");
+      ellipse.setAttribute("fill", "none");
+      ellipse.setAttribute("stroke", "#ff4d8d");
+      ellipse.setAttribute("stroke-width", "3");
+      overlay.appendChild(ellipse);
+    });
+  } else {
+    statusMsg.textContent = "Place ton visage dans le cadre";
+  }
+});
+
+async function detectLoop() {
+  if (video.readyState >= 2) {
+    await faceDetection.send({ image: video });
+  }
+  requestAnimationFrame(detectLoop);
+}
+
+startCamera().then(() => detectLoop());
+
+shutterBtn.addEventListener("click", () => {
+  if (!faceDetected) {
+    statusMsg.textContent = "Aucun visage détecté, réessaie !";
+    return;
+  }
+  canvas.width = video.videoWidth;
+  canvas.height = video.videoHeight;
+  const ctx = canvas.getContext("2d");
+  if (facingMode === "user") {
+    ctx.translate(canvas.width, 0);
+    ctx.scale(-1, 1);
+  }
+  ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+  canvas.toBlob(blob => {
+    capturedBlob = blob;
+    document.getElementById("preview-img").src = URL.createObjectURL(blob);
+    document.getElementById("camera-view").style.display = "none";
+    document.getElementById("preview-view").style.display = "flex";
+    if (currentStream) currentStream.getTracks().forEach(t => t.stop());
+  }, "image/jpeg", 0.9);
+});
+
+document.getElementById("retake-btn").addEventListener("click", () => {
+  document.getElementById("preview-view").style.display = "none";
+  document.getElementById("camera-view").style.display = "flex";
+  startCamera().then(() => detectLoop());
+});
+
+document.getElementById("send-btn").addEventListener("click", async () => {
+  const sendBtn = document.getElementById("send-btn");
+  const status2 = document.getElementById("status-msg2");
+  const caption = document.getElementById("caption-input").value.slice(0, 20);
+
+  sendBtn.disabled = true;
+  status2.textContent = "Envoi en cours...";
+
+  const formData = new FormData();
+  formData.append("photo", capturedBlob, "photo.jpg");
+  formData.append("caption", caption);
+
+  try {
+    const res = await fetch(`${SERVER_URL}/api/photos`, {
+      method: "POST",
+      body: formData
+    });
+    if (!res.ok) throw new Error("Erreur serveur");
+    status2.textContent = "Photo envoyée ! Elle va apparaître à l'écran.";
+    setTimeout(() => {
+      document.getElementById("preview-view").style.display = "none";
+      document.getElementById("camera-view").style.display = "flex";
+      document.getElementById("caption-input").value = "";
+      sendBtn.disabled = false;
+      startCamera().then(() => detectLoop());
+    }, 2000);
+  } catch (err) {
+    status2.textContent = "Erreur lors de l'envoi, réessaie.";
+    sendBtn.disabled = false;
+  }
+});
+</script>
+</body>
+</html>
