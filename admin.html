@@ -6,10 +6,11 @@
 <style>
   * { box-sizing: border-box; margin: 0; padding: 0; }
   body {
-    background: #000;
+    background: #3a3a3d;
     overflow: hidden;
     width: 100vw;
-    height: 100vh;
+    min-height: 100vh;
+    height: auto;
   }
   #login-screen {
     width: 100vw; height: 100vh;
@@ -35,6 +36,8 @@
     background: linear-gradient(135deg, #2d0a4e 0%, #7b2d8e 25%, #e0457b 50%, #ff7a5c 75%, #2fae6e 100%);
     background-size: 300% 300%;
     animation: sunset-move 20s ease infinite;
+    border: 10px solid #000;
+    box-shadow: 0 0 0 2px #222;
   }
   @keyframes sunset-move {
     0% { background-position: 0% 50%; }
@@ -70,13 +73,14 @@
   }
   #qr-code {
     position: absolute;
-    bottom: 12px;
-    right: 12px;
-    width: 90px;
-    height: 90px;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    width: 250px;
+    height: 250px;
     background: white;
-    border-radius: 6px;
-    padding: 4px;
+    border-radius: 10px;
+    padding: 10px;
   }
   #photo-zone {
     position: absolute;
@@ -123,6 +127,110 @@
     font-family: sans-serif;
     z-index: 10;
   }
+  #effect-layer {
+    position: absolute;
+    top: 0; left: 0;
+    width: 100%; height: 100%;
+    pointer-events: none;
+    overflow: hidden;
+    z-index: 20;
+  }
+  .effect-emoji {
+    position: absolute;
+    font-size: 60px;
+    animation: effect-rise 2.5s ease-in forwards;
+  }
+  @keyframes effect-rise {
+    0% { transform: translateY(0) scale(0.5) rotate(0deg); opacity: 0; }
+    15% { opacity: 1; }
+    100% { transform: translateY(-300px) scale(1.3) rotate(25deg); opacity: 0; }
+  }
+  #blackout-layer {
+    position: absolute;
+    top: 0; left: 0;
+    width: 100%; height: 100%;
+    background: #000;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 1.5s ease;
+    z-index: 40;
+  }
+  #blackout-layer.on { opacity: 1; }
+  #strobe-layer {
+    position: absolute;
+    top: 0; left: 0;
+    width: 100%; height: 100%;
+    display: none;
+    z-index: 30;
+  }
+  #strobe-layer.on { display: flex; }
+  .strobe-panel {
+    width: 192px;
+    height: 384px;
+    background: white;
+    animation-name: strobe-flash;
+    animation-timing-function: steps(1);
+    animation-iteration-count: infinite;
+  }
+  @keyframes strobe-flash {
+    0%, 49% { background: white; }
+    50%, 100% { background: black; }
+  }
+  body { display: flex; flex-direction: column; align-items: center; padding-top: 20px; padding-bottom: 40px; }
+  #toolbar {
+    width: 100%;
+    max-width: 950px;
+    background: linear-gradient(180deg, #2b2b2e 0%, #1c1c1e 100%);
+    display: flex;
+    flex-wrap: wrap;
+    align-items: stretch;
+    justify-content: center;
+    gap: 14px;
+    padding: 18px;
+    margin-top: 24px;
+    border-radius: 8px;
+    border: 1px solid #0a0a0a;
+    box-shadow: inset 0 1px 0 rgba(255,255,255,0.08), 0 6px 16px rgba(0,0,0,0.5);
+    font-family: 'Segoe UI', sans-serif;
+    font-size: 13px;
+    color: #ccc;
+  }
+  #toolbar button {
+    background: linear-gradient(180deg, #4a4a4d 0%, #2f2f31 100%);
+    color: #e8e8e8;
+    border: 1px solid #111;
+    border-top: 1px solid #5c5c5f;
+    border-radius: 5px;
+    padding: 12px 16px;
+    cursor: pointer;
+    font-size: 12px;
+    font-weight: 600;
+    letter-spacing: 0.4px;
+    text-transform: uppercase;
+    box-shadow: 0 2px 3px rgba(0,0,0,0.5);
+  }
+  #toolbar button:hover { background: linear-gradient(180deg, #58585b 0%, #38383a 100%); }
+  #toolbar button:active { box-shadow: inset 0 2px 4px rgba(0,0,0,0.6); transform: translateY(1px); }
+  #duration-control, #photo-counter {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    background: #19191b;
+    border: 1px solid #0a0a0a;
+    border-radius: 5px;
+    padding: 10px 16px;
+    box-shadow: inset 0 1px 3px rgba(0,0,0,0.6);
+    text-transform: uppercase;
+    font-size: 11px;
+    letter-spacing: 0.4px;
+    color: #999;
+  }
+  #duration-control input { width: 150px; accent-color: #ff4d8d; }
+  #photo-counter b { color: #ff4d8d; font-size: 15px; }
+  .polaroid.shuffling {
+    transition: transform 0.5s ease, opacity 0.5s ease;
+    opacity: 0;
+  }
 </style>
 </head>
 <body>
@@ -135,8 +243,27 @@
   <div id="login-error" style="color:#ff4d8d; font-size:13px;"></div>
 </div>
 
+<div id="toolbar">
+  <button id="clear-btn">Mélanger / Effacer</button>
+  <button id="pause-btn">Pause</button>
+  <button id="download-btn">Télécharger toutes les photos</button>
+  <button id="toggle-qr-btn">Cacher QR code</button>
+  <button id="meme-btn">Effet surprise</button>
+  <button id="strobe-btn">Stroboscope</button>
+  <button id="blackout-btn">Blackout</button>
+  <div id="duration-control">
+    <span>Durée d'affichage :</span>
+    <input type="range" id="duration-slider" min="5" max="60" value="30">
+    <span id="duration-value">30s</span>
+  </div>
+  <div id="photo-counter">Photos reçues : <b id="photo-count">0</b></div>
+</div>
 <div id="stage">
   <div id="admin-badge">ADMIN</div>
+  <div id="effect-layer"></div>
+  <div id="strobe-layer"></div>
+  <div id="blackout-layer"></div>
+  
   <div id="logo-left">
     <img id="logo-left-img" style="display:none;" />
     <label class="logo-upload-btn">Charger logo gauche<input type="file" id="logo-left-input" accept="image/*" style="display:none;"></label>
@@ -144,12 +271,11 @@
   <div id="photo-zone"></div>
   <div id="logo-right">
     <img id="logo-right-img" style="display:none;" />
-    <label class="logo-upload-btn">Charger logo droit<input type="file" id="logo-right-input" accept="image/*" style="display:none;"></label>
-    <img id="qr-code" />
+    <div id="qr-code"></div>
   </div>
 </div>
 
-<script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.3/build/qrcode.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.minhttps://cdn.jsdelivr.net/npm/"></script>
 <script>
 const SERVER_URL = "https://niko-photobooth-for-led-screen.onrender.com";
 const GUEST_URL = "https://niko-photobooth-01.netlify.app/guest.html";
@@ -157,9 +283,10 @@ const ADMIN_USER = "NIKO";
 const ADMIN_PASS = "27012022";
 
 const MAX_SLOTS = 4;
-const BASE_DURATION = 30000;
-const MIN_DURATION = 10000;
+let BASE_DURATION = 30000;
+let MIN_DURATION = 10000;
 const QUEUE_THRESHOLD = 3;
+let manualDuration = false;
 
 let photoQueue = [];
 let activeSlots = [];
@@ -191,9 +318,10 @@ window.addEventListener("resize", fitStage);
 
 // --- QR code vers la page invité ---
 function initQR() {
-  QRCode.toDataURL(GUEST_URL, { width: 200, margin: 1 }, (err, url) => {
-    if (!err) document.getElementById("qr-code").src = url;
-  });
+  const qrDiv = document.createElement("div");
+  document.getElementById("qr-code").replaceWith(qrDiv);
+  qrDiv.id = "qr-code";
+  new QRCode(qrDiv, { text: GUEST_URL, width: 90, height: 90 });
 }
 
 // --- Logos ---
@@ -216,6 +344,9 @@ function startPolling() {
   fetchNewPhotos();
 }
 
+let allPhotos = [];
+let isPaused = false;
+
 async function fetchNewPhotos() {
   try {
     const res = await fetch(`${SERVER_URL}/api/photos`);
@@ -223,22 +354,116 @@ async function fetchNewPhotos() {
     photos.forEach(p => {
       if (!seenIds.has(p.id)) {
         seenIds.add(p.id);
-        photoQueue.push(p);
+        allPhotos.push(p);
+        if (!isPaused) photoQueue.push(p);
       }
     });
-    processQueue();
+    document.getElementById("photo-count").textContent = allPhotos.length;
+    if (!isPaused) processQueue();
   } catch (err) {
     console.error("Erreur de récupération des photos", err);
   }
 }
 
+// --- Bouton blackout : fondu au noir en 1,5 seconde, puis fondu retour ---
+document.getElementById("blackout-btn").addEventListener("click", () => {
+  document.getElementById("blackout-layer").classList.toggle("on");
+});
+
+// --- Bouton effet surprise : emojis animés aléatoires ---
+const EFFECT_SETS = [
+  ["\u{1F525}","\u{1F525}","\u{1F525}","\u{1F525}","\u{1F525}","\u{1F525}"],
+  ["\u{2B50}","\u{2728}","\u{1F31F}","\u{2B50}","\u{2728}","\u{1F31F}"],
+  ["\u{1F600}","\u{1F973}","\u{1F60E}","\u{1F92A}","\u{1F600}","\u{1F973}"],
+  ["\u{1F389}","\u{1F38A}","\u{1F389}","\u{1F38A}","\u{1F389}","\u{1F38A}"],
+  ["\u{1F4A5}","\u{26A1}","\u{1F4A5}","\u{26A1}","\u{1F4A5}","\u{26A1}"]
+];
+document.getElementById("meme-btn").addEventListener("click", () => {
+  const layer = document.getElementById("effect-layer");
+  const set = EFFECT_SETS[Math.floor(Math.random() * EFFECT_SETS.length)];
+  for (let i = 0; i < 18; i++) {
+    const span = document.createElement("span");
+    span.className = "effect-emoji";
+    span.textContent = set[Math.floor(Math.random() * set.length)];
+    span.style.left = Math.random() * 2600 + "px";
+    span.style.top = (200 + Math.random() * 150) + "px";
+    span.style.animationDelay = (Math.random() * 0.8) + "s";
+    span.style.fontSize = (40 + Math.random() * 50) + "px";
+    layer.appendChild(span);
+    setTimeout(() => span.remove(), 3500);
+  }
+});
+
+// --- Bouton stroboscope : actif seulement tant qu'on appuie, bloc par bloc (14 panneaux de 192px) ---
+const strobeBtn = document.getElementById("strobe-btn");
+const strobeLayer = document.getElementById("strobe-layer");
+for (let i = 0; i < 14; i++) {
+  const panel = document.createElement("div");
+  panel.className = "strobe-panel";
+  strobeLayer.appendChild(panel);
+}
+function strobeOn() {
+  strobeLayer.classList.add("on");
+  document.querySelectorAll(".strobe-panel").forEach(panel => {
+    const duration = (0.05 + Math.random() * 0.08).toFixed(3);
+    const delay = (Math.random() * 0.1).toFixed(3);
+    panel.style.animationDuration = duration + "s";
+    panel.style.animationDelay = delay + "s";
+  });
+}
+function strobeOff() { strobeLayer.classList.remove("on"); }
+strobeBtn.addEventListener("mousedown", strobeOn);
+strobeBtn.addEventListener("touchstart", strobeOn);
+strobeBtn.addEventListener("mouseup", strobeOff);
+strobeBtn.addEventListener("mouseleave", strobeOff);
+strobeBtn.addEventListener("touchend", strobeOff);
+
+// --- Cacher / afficher le QR code (pour laisser place à un logo) ---
+document.getElementById("toggle-qr-btn").addEventListener("click", () => {
+  const qr = document.getElementById("qr-code");
+  const btn = document.getElementById("toggle-qr-btn");
+  const hidden = qr.style.display === "none";
+  qr.style.display = hidden ? "block" : "none";
+  btn.textContent = hidden ? "Cacher QR code" : "Afficher QR code";
+});
+
+// --- Pause de l'affichage (la réception continue en arrière-plan) ---
+document.getElementById("pause-btn").addEventListener("click", () => {
+  isPaused = !isPaused;
+  document.getElementById("pause-btn").textContent = isPaused ? "Reprendre" : "Pause";
+});
+
+// --- Téléchargement de toutes les photos de la soirée ---
+document.getElementById("download-btn").addEventListener("click", async () => {
+  for (const photo of allPhotos) {
+    const a = document.createElement("a");
+    a.href = photo.url;
+    a.download = photo.id || "photo.jpg";
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    await new Promise(r => setTimeout(r, 300));
+  }
+});
+
 // --- Logique d'affichage adaptatif ---
 function currentDuration() {
+  if (manualDuration) return BASE_DURATION;
   if (photoQueue.length >= QUEUE_THRESHOLD) return MIN_DURATION;
   const steps = photoQueue.length;
   const reduction = (BASE_DURATION - MIN_DURATION) * (steps / QUEUE_THRESHOLD);
   return Math.max(MIN_DURATION, BASE_DURATION - reduction);
 }
+
+// --- Curseur manuel de durée d'affichage ---
+const durationSlider = document.getElementById("duration-slider");
+durationSlider.addEventListener("input", () => {
+  manualDuration = true;
+  const seconds = parseInt(durationSlider.value, 10);
+  BASE_DURATION = seconds * 1000;
+  MIN_DURATION = seconds * 1000;
+  document.getElementById("duration-value").textContent = seconds + "s";
+});
 
 function processQueue() {
   while (activeSlots.length < MAX_SLOTS && photoQueue.length > 0) {
@@ -291,6 +516,22 @@ function removePhoto(slot) {
     processQueue();
   }, 600);
 }
+
+// --- Bouton Mélanger / Effacer : envole toutes les photos actuelles ---
+document.getElementById("clear-btn").addEventListener("click", () => {
+  activeSlots.forEach((slot, i) => {
+    setTimeout(() => {
+      const dir = Math.random() > 0.5 ? 1 : -1;
+      slot.el.classList.add("shuffling");
+      slot.el.style.transform = `translateX(${dir * 800}px) rotate(${dir * 90}deg) scale(0.5)`;
+    }, i * 80);
+  });
+  setTimeout(() => {
+    activeSlots.forEach(slot => slot.el.remove());
+    activeSlots = [];
+    processQueue();
+  }, activeSlots.length * 80 + 550);
+});
 </script>
 </body>
 </html>
