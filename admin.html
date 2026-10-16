@@ -309,13 +309,14 @@
   <button id="meme-btn">Effet surprise</button>
   <button id="strobe-btn">Stroboscope</button>
   <button id="blackout-btn">Blackout</button>
+  <button id="purge-btn" style="color:#ff7b7b;">Purger les photos</button>
   <div id="duration-control">
     <span>Durée d'affichage :</span>
     <input type="range" id="duration-slider" min="5" max="60" value="30">
     <span id="duration-value">30s</span>
   </div>
   <div id="photo-counter">Photos reçues : <b id="photo-count">0</b></div>
-  <span style="font-size:11px; color:#777; align-self:center;">v3</span>
+  <span style="font-size:11px; color:#777; align-self:center;">v4</span>
 </div>
 <div id="stage-wrap">
 <div id="stage">
@@ -646,6 +647,26 @@ setTimeout(idleCycle, 1000);
 setInterval(() => {
   if (!isIdle()) document.getElementById("idle-text").classList.remove("show");
 }, 300);
+
+// --- Bouton Purger : supprime définitivement toutes les photos du serveur ---
+document.getElementById("purge-btn").addEventListener("click", async () => {
+  if (!confirm("Supprimer définitivement TOUTES les photos du serveur ?")) return;
+  try {
+    const res = await fetch(`${SERVER_URL}/api/photos`, {
+      method: "DELETE",
+      headers: { "x-admin-pass": ADMIN_PASS }
+    });
+    if (!res.ok) throw new Error("Erreur " + res.status);
+    photoQueue = [];
+    activeSlots.forEach(slot => slot.el.remove());
+    activeSlots = [];
+    allPhotos = [];
+    document.getElementById("photo-count").textContent = 0;
+    alert("Toutes les photos ont été supprimées.");
+  } catch (err) {
+    alert("Échec de la suppression : " + err.message);
+  }
+});
 
 // --- Bouton Mélanger / Effacer : envole toutes les photos actuelles ---
 document.getElementById("clear-btn").addEventListener("click", () => {
