@@ -28,7 +28,9 @@
   }
   #stage {
     display: none;
-    position: relative;
+    position: absolute;
+    top: 0;
+    left: 0;
     width: 2688px;
     height: 384px;
     transform-origin: top left;
@@ -227,6 +229,8 @@
   }
   #duration-control input { width: 150px; accent-color: #ff4d8d; }
   #photo-counter b { color: #ff4d8d; font-size: 15px; }
+  #stage-wrap { position: relative; margin: 0 auto; order: 1; }
+  #toolbar { order: 2; }
   .polaroid.shuffling {
     transition: transform 0.5s ease, opacity 0.5s ease;
     opacity: 0;
@@ -258,6 +262,7 @@
   </div>
   <div id="photo-counter">Photos reçues : <b id="photo-count">0</b></div>
 </div>
+<div id="stage-wrap">
 <div id="stage">
   <div id="admin-badge">ADMIN</div>
   <div id="effect-layer"></div>
@@ -274,8 +279,9 @@
     <div id="qr-code"></div>
   </div>
 </div>
+</div>
 
-<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.minhttps://cdn.jsdelivr.net/npm/"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
 <script>
 const SERVER_URL = "https://niko-photobooth-for-led-screen.onrender.com";
 const GUEST_URL = "https://niko-photobooth-01.netlify.app/guest.html";
@@ -311,8 +317,11 @@ document.getElementById("login-btn").addEventListener("click", () => {
 // --- Mise à l'échelle de la scène 2688x384 dans la fenêtre du navigateur ---
 function fitStage() {
   const stage = document.getElementById("stage");
-  const scale = Math.min(window.innerWidth / 2688, window.innerHeight / 384);
+  const wrap = document.getElementById("stage-wrap");
+  const scale = Math.min((window.innerWidth - 40) / 2688, window.innerHeight / 384);
   stage.style.transform = `scale(${scale})`;
+  wrap.style.width = (2688 * scale) + "px";
+  wrap.style.height = (384 * scale) + "px";
 }
 window.addEventListener("resize", fitStage);
 
@@ -321,7 +330,7 @@ function initQR() {
   const qrDiv = document.createElement("div");
   document.getElementById("qr-code").replaceWith(qrDiv);
   qrDiv.id = "qr-code";
-  new QRCode(qrDiv, { text: GUEST_URL, width: 90, height: 90 });
+  new QRCode(qrDiv, { text: GUEST_URL, width: 230, height: 230 });
 }
 
 // --- Logos ---
@@ -336,7 +345,6 @@ function setupLogoUpload(inputId, imgId) {
   });
 }
 setupLogoUpload("logo-left-input", "logo-left-img");
-setupLogoUpload("logo-right-input", "logo-right-img");
 
 // --- Récupération des nouvelles photos depuis le serveur ---
 function startPolling() {
