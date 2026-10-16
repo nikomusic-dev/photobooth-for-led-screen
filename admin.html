@@ -315,6 +315,7 @@
     <span id="duration-value">30s</span>
   </div>
   <div id="photo-counter">Photos reçues : <b id="photo-count">0</b></div>
+  <span style="font-size:11px; color:#777; align-self:center;">v3</span>
 </div>
 <div id="stage-wrap">
 <div id="stage">
@@ -385,10 +386,40 @@ window.addEventListener("resize", fitStage);
 
 // --- QR code vers la page invité ---
 function initQR() {
-  const qrDiv = document.createElement("div");
-  document.getElementById("qr-code").replaceWith(qrDiv);
-  qrDiv.id = "qr-code";
-  new QRCode(qrDiv, { text: GUEST_URL, width: 240, height: 240 });
+  // On génère le QR code en grand hors écran, puis on le recadre au pixel près
+  // pour qu'il remplisse exactement le cadre blanc (corrige le décalage coin haut-gauche).
+  const holder = document.createElement("div");
+  holder.style.cssText = "position:absolute;left:-9999px;top:0;";
+  document.body.appendChild(holder);
+  new QRCode(holder, { text: GUEST_URL, width: 600, height: 600, correctLevel: QRCode.CorrectLevel.M });
+  const src = holder.querySelector("canvas");
+  const w = src.width, h = src.height;
+  const px = src.getContext("2d").getImageData(0, 0, w, h).data;
+  let minX = w, minY = h, maxX = 0, maxY = 0;
+  for (let y = 0; y < h; y++) {
+    for (let x = 0; x < w; x++) {
+      const i = (y * w + x) * 4;
+      if (px[i + 3] > 0 && px[i] < 128) {
+        if (x < minX) minX = x;
+        if (x > maxX) maxX = x;
+        if (y < minY) minY = y;
+        if (y > maxY) maxY = y;
+      }
+    }
+  }
+  const side = Math.max(maxX - minX + 1, maxY - minY + 1);
+  const out = document.createElement("canvas");
+  out.width = side;
+  out.height = side;
+  const octx = out.getContext("2d");
+  octx.fillStyle = "#fff";
+  octx.fillRect(0, 0, side, side);
+  octx.drawImage(src, minX, minY, side, side, 0, 0, side, side);
+  out.style.cssText = "width:100%;height:100%;display:block;";
+  const target = document.getElementById("qr-code");
+  target.innerHTML = "";
+  target.appendChild(out);
+  holder.remove();
 }
 
 // --- Logos ---
