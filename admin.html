@@ -78,8 +78,8 @@
     top: 50%;
     left: 50%;
     transform: translate(-50%, -50%);
-    width: 250px;
-    height: 250px;
+    width: 260px;
+    height: 260px;
     background: white;
     border-radius: 10px;
     padding: 10px;
@@ -229,6 +229,60 @@
   }
   #duration-control input { width: 150px; accent-color: #ff4d8d; }
   #photo-counter b { color: #ff4d8d; font-size: 15px; }
+  #qr-code img { width: 100% !important; height: 100% !important; }
+  #idle-text {
+    position: absolute;
+    left: 384px; top: 0;
+    width: 1920px; height: 384px;
+    display: flex; flex-direction: column;
+    align-items: center; justify-content: center;
+    text-align: center;
+    pointer-events: none;
+    z-index: 5;
+    opacity: 0;
+    transition: opacity 0.8s ease;
+    font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
+  }
+  #idle-text.show { opacity: 1; }
+  #idle-main {
+    font-size: 150px;
+    font-weight: 900;
+    letter-spacing: 12px;
+    text-transform: uppercase;
+    line-height: 1;
+    color: #fff;
+    background: linear-gradient(100deg, #fff 0%, #fff 42%, #ff3b30 44%, #ff9500 47%, #ffd60a 50%, #34c759 53%, #0a84ff 56%, #fff 58%, #fff 100%);
+    background-size: 300% 100%;
+    -webkit-background-clip: text;
+    background-clip: text;
+    -webkit-text-fill-color: transparent;
+    filter: drop-shadow(0 6px 16px rgba(0,0,0,0.35));
+  }
+  #idle-text.show #idle-main {
+    animation: idle-in 1.3s ease-out, idle-shine 3.2s ease-in-out 0.9s infinite;
+  }
+  #idle-sub {
+    margin-top: 16px;
+    font-size: 36px;
+    font-weight: 500;
+    letter-spacing: 10px;
+    text-transform: uppercase;
+    color: rgba(255,255,255,0.92);
+    filter: drop-shadow(0 3px 8px rgba(0,0,0,0.35));
+  }
+  #idle-text.show #idle-sub { animation: idle-sub-in 1.6s ease-out; }
+  @keyframes idle-in {
+    from { letter-spacing: 60px; transform: scale(0.94); opacity: 0; }
+    to { letter-spacing: 12px; transform: scale(1); opacity: 1; }
+  }
+  @keyframes idle-shine {
+    from { background-position: 100% 0; }
+    to { background-position: 0% 0; }
+  }
+  @keyframes idle-sub-in {
+    0%, 40% { opacity: 0; transform: translateY(16px); }
+    100% { opacity: 1; transform: translateY(0); }
+  }
   #stage-wrap { position: relative; margin: 0 auto; order: 1; }
   #toolbar { order: 2; }
   .polaroid.shuffling {
@@ -274,6 +328,10 @@
     <label class="logo-upload-btn">Charger logo gauche<input type="file" id="logo-left-input" accept="image/*" style="display:none;"></label>
   </div>
   <div id="photo-zone"></div>
+  <div id="idle-text">
+    <div id="idle-main">Photobooth</div>
+    <div id="idle-sub">Scanne le QR code</div>
+  </div>
   <div id="logo-right">
     <img id="logo-right-img" style="display:none;" />
     <div id="qr-code"></div>
@@ -330,7 +388,7 @@ function initQR() {
   const qrDiv = document.createElement("div");
   document.getElementById("qr-code").replaceWith(qrDiv);
   qrDiv.id = "qr-code";
-  new QRCode(qrDiv, { text: GUEST_URL, width: 230, height: 230 });
+  new QRCode(qrDiv, { text: GUEST_URL, width: 240, height: 240 });
 }
 
 // --- Logos ---
@@ -524,6 +582,39 @@ function removePhoto(slot) {
     processQueue();
   }, 600);
 }
+
+// --- Animation d'attente : texte qui tourne en boucle tant qu'aucune photo n'est affichée ---
+const IDLE_MESSAGES = [
+  { main: "Photobooth", sub: "Scanne le QR code" },
+  { main: "Smile !", sub: "Ta photo sur le grand écran" },
+  { main: "Prends la pose", sub: "Scanne · Souris · Envoie" }
+];
+let idleIndex = 0;
+function isIdle() { return activeSlots.length === 0 && photoQueue.length === 0; }
+function idleCycle() {
+  const el = document.getElementById("idle-text");
+  if (!isIdle()) {
+    el.classList.remove("show");
+    setTimeout(idleCycle, 1500);
+    return;
+  }
+  const m = IDLE_MESSAGES[idleIndex % IDLE_MESSAGES.length];
+  idleIndex++;
+  document.getElementById("idle-main").textContent = m.main;
+  document.getElementById("idle-sub").textContent = m.sub;
+  el.classList.remove("show");
+  void el.offsetWidth;
+  el.classList.add("show");
+  setTimeout(() => {
+    el.classList.remove("show");
+    setTimeout(idleCycle, 3500);
+  }, 6500);
+}
+setTimeout(idleCycle, 1000);
+// Dès qu'une photo arrive, le texte disparaît immédiatement
+setInterval(() => {
+  if (!isIdle()) document.getElementById("idle-text").classList.remove("show");
+}, 300);
 
 // --- Bouton Mélanger / Effacer : envole toutes les photos actuelles ---
 document.getElementById("clear-btn").addEventListener("click", () => {
