@@ -50,7 +50,7 @@
     position: absolute;
     top: 0;
     width: 384px;
-    height: 384px;
+    height: 100%;
     display: flex;
     align-items: center;
     justify-content: center;
@@ -60,8 +60,8 @@
   #logo-left { left: 0; }
   #logo-right { right: 0; }
   #logo-left img, #logo-right img {
-    max-width: 80%;
-    max-height: 60%;
+    max-width: 94%;
+    max-height: 94%;
     object-fit: contain;
   }
   .logo-upload-btn {
@@ -309,6 +309,9 @@
   <button id="meme-btn">Effet surprise</button>
   <button id="strobe-btn">Stroboscope</button>
   <button id="blackout-btn">Blackout</button>
+  <button id="logo-btn">Charger logo</button>
+  <input type="file" id="logo-left-input" accept="image/*" style="display:none;">
+  <button id="test-btn">Mode test</button>
   <button id="purge-btn" style="color:#ff7b7b;">Purger les photos</button>
   <div id="duration-control">
     <span>Durée d'affichage :</span>
@@ -316,7 +319,7 @@
     <span id="duration-value">30s</span>
   </div>
   <div id="photo-counter">Photos reçues : <b id="photo-count">0</b></div>
-  <span style="font-size:11px; color:#777; align-self:center;">v4</span>
+  <span style="font-size:11px; color:#777; align-self:center;">v5</span>
 </div>
 <div id="stage-wrap">
 <div id="stage">
@@ -327,7 +330,7 @@
   
   <div id="logo-left">
     <img id="logo-left-img" style="display:none;" />
-    <label class="logo-upload-btn">Charger logo gauche<input type="file" id="logo-left-input" accept="image/*" style="display:none;"></label>
+    <!-- le bouton de chargement du logo est dans le panneau de contrôle -->
   </div>
   <div id="photo-zone"></div>
   <div id="idle-text">
@@ -344,7 +347,7 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
 <script>
 const SERVER_URL = "https://niko-photobooth-for-led-screen.onrender.com";
-const GUEST_URL = "https://niko-photobooth-01.netlify.app/guest.html";
+const GUEST_URL = new URL("guest.html", window.location.href).href;
 const ADMIN_USER = "NIKO";
 const ADMIN_PASS = "27012022";
 
@@ -425,16 +428,28 @@ function initQR() {
 
 // --- Logos ---
 function setupLogoUpload(inputId, imgId) {
+  const img = document.getElementById(imgId);
+  // Restaure le logo enregistré dans ce navigateur (s'il existe)
+  try {
+    const saved = localStorage.getItem("logo-" + imgId);
+    if (saved) { img.src = saved; img.style.display = "block"; }
+  } catch (e) {}
   document.getElementById(inputId).addEventListener("change", (e) => {
     const file = e.target.files[0];
-    if (file) {
-      const img = document.getElementById(imgId);
-      img.src = URL.createObjectURL(file);
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      img.src = reader.result;
       img.style.display = "block";
-    }
+      try { localStorage.setItem("logo-" + imgId, reader.result); } catch (err) {}
+    };
+    reader.readAsDataURL(file);
   });
 }
 setupLogoUpload("logo-left-input", "logo-left-img");
+document.getElementById("logo-btn").addEventListener("click", () => {
+  document.getElementById("logo-left-input").click();
+});
 
 // --- Récupération des nouvelles photos depuis le serveur ---
 function startPolling() {
@@ -532,16 +547,9 @@ document.getElementById("pause-btn").addEventListener("click", () => {
 });
 
 // --- Téléchargement de toutes les photos de la soirée ---
-document.getElementById("download-btn").addEventListener("click", async () => {
-  for (const photo of allPhotos) {
-    const a = document.createElement("a");
-    a.href = photo.url;
-    a.download = photo.id || "photo.jpg";
-    document.body.appendChild(a);
-    a.click();
-    a.remove();
-    await new Promise(r => setTimeout(r, 300));
-  }
+document.getElementById("download-btn").addEventListener("click", () => {
+  // Ouvre la galerie du serveur : toutes les photos + un bouton "Tout télécharger" (ZIP)
+  window.open(`${SERVER_URL}/gallery`, "_blank");
 });
 
 // --- Logique d'affichage adaptatif ---
@@ -602,7 +610,7 @@ function showPhoto(photo) {
   const slot = { el, photo };
   activeSlots.push(slot);
 
-  const duration = currentDuration();
+  const duration = photo.test ? 8000 : currentDuration();
   setTimeout(() => removePhoto(slot), duration);
 }
 
@@ -647,6 +655,43 @@ setTimeout(idleCycle, 1000);
 setInterval(() => {
   if (!isIdle()) document.getElementById("idle-text").classList.remove("show");
 }, 300);
+
+// --- Bouton Mode test : simule l'arrivée de photos (images de couleur) pour régler la mise en page ---
+const TEST_COLORS = [
+  { name: "Noir", color: "#000000" },
+  { name: "Blanc", color: "#ffffff" },
+  { name: "Vert", color: "#1faa4b" },
+  { name: "Rouge", color: "#e02424" },
+  { name: "Bleu", color: "#1e5bd8" }
+];
+let testMode = false;
+let testTimer = null;
+let testIndex = 0;
+function nextTestPhoto() {
+  const c = TEST_COLORS[testIndex % TEST_COLORS.length];
+  testIndex++;
+  const svg = `<svg xmlns='http://www.w3.org/2000/svg' width='200' height='200'><rect width='200' height='200' fill='${c.color}'/></svg>`;
+  return { id: "test-" + testIndex, url: "data:image/svg+xml;utf8," + encodeURIComponent(svg), caption: c.name, test: true };
+}
+function feedTest() {
+  if (photoQueue.filter(p => p.test).length < 2) photoQueue.push(nextTestPhoto());
+  processQueue();
+}
+document.getElementById("test-btn").addEventListener("click", () => {
+  testMode = !testMode;
+  const btn = document.getElementById("test-btn");
+  if (testMode) {
+    btn.textContent = "Arrêter le test";
+    for (let i = 0; i < MAX_SLOTS; i++) photoQueue.push(nextTestPhoto());
+    processQueue();
+    testTimer = setInterval(feedTest, 2000);
+  } else {
+    btn.textContent = "Mode test";
+    clearInterval(testTimer);
+    photoQueue = photoQueue.filter(p => !p.test);
+    activeSlots.filter(s => s.photo.test).forEach(s => removePhoto(s));
+  }
+});
 
 // --- Bouton Purger : supprime définitivement toutes les photos du serveur ---
 document.getElementById("purge-btn").addEventListener("click", async () => {
