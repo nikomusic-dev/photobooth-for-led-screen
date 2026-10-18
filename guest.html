@@ -14,7 +14,9 @@
     display: flex;
     flex-direction: column;
     align-items: center;
-    justify-content: center;
+    justify-content: flex-start;
+    padding-top: 10px;
+    padding-bottom: 90px;
     overflow: hidden;
   }
   #camera-view, #preview-view {
@@ -23,20 +25,20 @@
     display: flex;
     flex-direction: column;
     align-items: center;
-    justify-content: center;
+    justify-content: flex-start;
     position: relative;
   }
   #preview-view { display: none; }
   video, #photo-canvas, #preview-img {
     width: 100%;
-    max-height: 75vh;
+    max-height: 62vh;
     object-fit: cover;
     border-radius: 12px;
   }
   #face-overlay {
     position: absolute;
     top: 0; left: 0;
-    width: 100%; height: 75vh;
+    width: 100%; height: 62vh;
     pointer-events: none;
   }
   .controls {
@@ -87,9 +89,59 @@
     min-height: 20px;
   }
   #send-btn:disabled { background: #555; }
+  #splash, #terms {
+    position: fixed;
+    top: 0; left: 0; right: 0; bottom: 0;
+    z-index: 100;
+    background: #0a0a0a;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 24px;
+    text-align: center;
+  }
+  #splash img { width: 78%; max-width: 360px; animation: splash-pop 1s ease-out; }
+  @keyframes splash-pop {
+    from { opacity: 0; transform: scale(0.85); }
+    to { opacity: 1; transform: scale(1); }
+  }
+  #splash-sub {
+    margin-top: 18px;
+    color: #ff4d8d;
+    font-size: 14px;
+    letter-spacing: 3px;
+    text-transform: uppercase;
+  }
+  #terms { display: none; justify-content: flex-start; overflow-y: auto; padding-top: 28px; }
+  #terms img { width: 130px; margin-bottom: 14px; }
+  #terms h1 { font-size: 20px; margin-bottom: 14px; }
+  #terms ul { text-align: left; max-width: 380px; list-style: none; font-size: 15px; line-height: 1.45; }
+  #terms li { margin-bottom: 10px; padding-left: 22px; position: relative; }
+  #terms li::before { content: "\2022"; color: #ff4d8d; position: absolute; left: 4px; }
+  #terms button { margin: 18px 0 30px; }
 </style>
 </head>
 <body>
+
+<div id="splash">
+  <img src="logo.png" alt="Portland Pub" />
+  <div id="splash-sub">Photobooth</div>
+</div>
+
+<div id="terms">
+  <img src="logo.png" alt="Portland Pub" />
+  <h1>Avant de commencer</h1>
+  <ul>
+    <li>Ta photo sera affichée publiquement sur l'écran géant du Portland Pub pendant la soirée.</li>
+    <li>Ne photographie que des personnes qui sont d'accord pour apparaître à l'écran.</li>
+    <li>Pas de contenu choquant, vulgaire, haineux ou illégal. Les légendes sont filtrées automatiquement et l'équipe peut retirer n'importe quelle photo.</li>
+    <li>La légende est facultative : inutile de donner ton nom complet.</li>
+    <li>Pas de spam : laisse aussi la place aux autres !</li>
+    <li>En continuant, tu acceptes ces conditions et l'affichage de ta photo.</li>
+  </ul>
+  <button id="accept-btn">J'accepte et je continue</button>
+</div>
 
 <div id="camera-view">
   <div style="position: relative; width: 100%;">
@@ -117,6 +169,47 @@
 <script src="https://cdn.jsdelivr.net/npm/@mediapipe/face_detection/face_detection.js"></script>
 <script>
 const SERVER_URL = "https://niko-photobooth-for-led-screen.onrender.com";
+
+// Durée de la page de chargement avec le logo (en millisecondes)
+const SPLASH_MS = 3000;
+const splashEl = document.getElementById("splash");
+const termsEl = document.getElementById("terms");
+let termsAccepted = false;
+try { termsAccepted = sessionStorage.getItem("terms-ok") === "1"; } catch (e) {}
+
+let appStarted = false;
+function startApp() {
+  if (appStarted) return;
+  appStarted = true;
+  startCamera().then(() => detectLoop());
+}
+
+setTimeout(() => {
+  splashEl.style.display = "none";
+  if (termsAccepted) {
+    startApp();
+  } else {
+    termsEl.style.display = "flex";
+  }
+}, SPLASH_MS);
+
+document.getElementById("accept-btn").addEventListener("click", () => {
+  try { sessionStorage.setItem("terms-ok", "1"); } catch (e) {}
+  termsEl.style.display = "none";
+  startApp();
+});
+
+// Signal de présence toutes les 10 s (permet à l'admin d'estimer le nombre de téléphones connectés)
+const guestId = Math.random().toString(36).slice(2) + Date.now().toString(36);
+let moderationOn = true;
+function pingServer() {
+  fetch(`${SERVER_URL}/api/ping?id=${guestId}`)
+    .then(r => r.json())
+    .then(d => { if (typeof d.moderation === "boolean") moderationOn = d.moderation; })
+    .catch(() => {});
+}
+pingServer();
+setInterval(pingServer, 10000);
 
 let currentStream = null;
 let facingMode = "user";
@@ -149,12 +242,24 @@ document.getElementById("switch-cam").addEventListener("click", () => {
   startCamera();
 });
 
-const faceDetection = new FaceDetection({
-  locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/face_detection/${file}`
-});
-faceDetection.setOptions({ model: "short", minDetectionConfidence: 0.6 });
+let detectionAvailable = true;
+let gotResult = false;
+let detectionFailures = 0;
+let firstSendAt = 0;
+let faceDetection = null;
+try {
+  faceDetection = new FaceDetection({
+    locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/face_detection/${file}`
+  });
+  faceDetection.setOptions({ model: "short", minDetectionConfidence: 0.6 });
+} catch (e) {
+  // Détection impossible sur ce téléphone : on ne bloque pas la prise de photo
+  detectionAvailable = false;
+  statusMsg.textContent = "Prends ta photo quand tu es prêt !";
+}
 
-faceDetection.onResults((results) => {
+if (faceDetection) faceDetection.onResults((results) => {
+  gotResult = true;
   overlay.innerHTML = "";
   faceDetected = results.detections && results.detections.length > 0;
   if (faceDetected) {
@@ -179,16 +284,28 @@ faceDetection.onResults((results) => {
 });
 
 async function detectLoop() {
-  if (video.readyState >= 2) {
-    await faceDetection.send({ image: video });
+  if (!detectionAvailable) return;
+  try {
+    if (video.readyState >= 2) {
+      if (!firstSendAt) firstSendAt = Date.now();
+      await faceDetection.send({ image: video });
+    }
+  } catch (e) {
+    detectionFailures++;
+  }
+  // Si la détection ne répond pas (certains téléphones Android), on débloque la prise de photo
+  const stuck = firstSendAt && !gotResult && Date.now() - firstSendAt > 20000;
+  if (detectionFailures > 5 || stuck) {
+    detectionAvailable = false;
+    overlay.innerHTML = "";
+    statusMsg.textContent = "Prends ta photo quand tu es prêt !";
+    return;
   }
   requestAnimationFrame(detectLoop);
 }
 
-startCamera().then(() => detectLoop());
-
 shutterBtn.addEventListener("click", () => {
-  if (!faceDetected) {
+  if (moderationOn && detectionAvailable && !faceDetected) {
     statusMsg.textContent = "Aucun visage détecté, réessaie !";
     return;
   }
@@ -232,6 +349,11 @@ document.getElementById("send-btn").addEventListener("click", async () => {
       method: "POST",
       body: formData
     });
+    if (res.status === 422) {
+      status2.textContent = "Ce texte n'est pas autorisé. Modifie ta légende !";
+      sendBtn.disabled = false;
+      return;
+    }
     if (!res.ok) throw new Error("Erreur serveur");
     status2.textContent = "Photo envoyée ! Elle va apparaître à l'écran.";
     setTimeout(() => {
