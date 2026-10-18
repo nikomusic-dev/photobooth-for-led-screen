@@ -7,7 +7,8 @@
   * { box-sizing: border-box; margin: 0; padding: 0; }
   body {
     background: #3a3a3d;
-    overflow: hidden;
+    overflow-x: hidden;
+    overflow-y: auto;
     width: 100vw;
     min-height: 100vh;
     height: auto;
@@ -439,6 +440,25 @@
   }
   #logo-full.show { opacity: 1; }
   #logo-full img { height: 88%; object-fit: contain; filter: drop-shadow(0 0 30px rgba(255,255,255,0.25)); }
+
+  /* --- Panneaux de contrôle sur deux colonnes --- */
+  #panels { order: 3; width: 100%; max-width: 1500px; margin-top: 16px; column-count: 2; column-gap: 16px; }
+  #panels > * { order: 0 !important; width: 100% !important; max-width: none !important; margin: 0 0 16px 0 !important; break-inside: avoid; }
+  #toolbar { max-width: 1500px; }
+  @media (max-width: 1000px) { #panels { column-count: 1; } }
+  .cpanel input[type=color] { width: 40px; height: 34px; border: none; background: none; padding: 0; cursor: pointer; }
+
+  /* --- Effets de fond --- */
+  #fx-layer { position: absolute; top: 0; left: 0; width: 100%; height: 100%; overflow: hidden; pointer-events: none; z-index: 0; }
+  .fx { position: absolute; }
+  .fx-star { width: 4px; height: 4px; border-radius: 50%; background: #fff; animation: fx-twinkle var(--d) ease-in-out var(--delay) infinite; }
+  @keyframes fx-twinkle { 0%, 100% { opacity: 0.1; transform: scale(0.6); } 50% { opacity: 1; transform: scale(1.4); } }
+  .fx-bubble { bottom: -60px; border-radius: 50%; border: 2px solid rgba(255,255,255,0.6); background: rgba(255,255,255,0.12); animation: fx-rise var(--d) linear var(--delay) infinite; }
+  @keyframes fx-rise { from { transform: translateY(0); opacity: 0; } 10% { opacity: 0.9; } to { transform: translateY(-460px); opacity: 0; } }
+  .fx-confetti { top: -30px; width: 10px; height: 18px; animation: fx-fall var(--d) linear var(--delay) infinite; }
+  @keyframes fx-fall { from { transform: translateY(0) rotate(0deg); } to { transform: translateY(460px) rotate(540deg); } }
+  .fx-snow { top: -20px; width: 8px; height: 8px; border-radius: 50%; background: #fff; opacity: 0.85; animation: fx-snow-fall var(--d) linear var(--delay) infinite; }
+  @keyframes fx-snow-fall { from { transform: translate(0, 0); } 50% { transform: translate(30px, 230px); } to { transform: translate(-10px, 460px); } }
 </style>
 </head>
 <body>
@@ -473,11 +493,12 @@
   <div id="shown-counter">Diffusées : <b id="shown-count">0</b></div>
   <div id="queue-counter">En attente : <b id="queue-count">0</b></div>
   <div id="guest-counter">Téléphones connectés : <b id="guest-count">0</b></div>
-  <span style="font-size:11px; color:#777; align-self:center;">v8</span>
+  <span style="font-size:11px; color:#777; align-self:center;">v11</span>
 </div>
 <div id="stage-wrap">
 <div id="stage">
   <div id="admin-badge">ADMIN</div>
+  <div id="fx-layer"></div>
   <div id="effect-layer"></div>
   <div id="strobe-layer"></div>
   <div id="blackout-layer"></div>
@@ -510,6 +531,7 @@
 </div>
 </div>
 
+<div id="panels">
 <div id="text-panel">
   <span>Message à l'écran :</span>
   <input id="text-input" maxlength="40" placeholder="Ex : Bienvenue au Portland Pub !" />
@@ -532,6 +554,20 @@
 <div class="cpanel" id="ambiance-panel">
   <h3>Ambiance</h3>
   <div class="line" id="theme-list"></div>
+  <div class="line">
+    <span>Couleur</span>
+    <input type="color" id="bg-c1" value="#ff0066">
+    <input type="color" id="bg-c2" value="#0066ff">
+    <button id="bg-solid">Couleur unie</button>
+    <button id="bg-grad">Dégradé perso</button>
+    <button id="bg-image-btn">Image de fond</button>
+    <input type="file" id="bg-image-input" accept="image/*" style="display:none;">
+    <button id="bg-reset">Retour aux thèmes</button>
+  </div>
+  <div class="line">
+    <span>Effets</span>
+    <span id="fx-list" style="display:flex; gap:8px; flex-wrap:wrap;"></span>
+  </div>
   <div class="line">
     <span>Vitesse du fond</span>
     <input type="range" id="speed-slider" min="5" max="60" value="20">
@@ -582,6 +618,7 @@
     <button id="qr2-btn">Alterner : OFF</button>
   </div>
 </div>
+</div>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
 <script>
@@ -628,13 +665,13 @@ function fitStage() {
 window.addEventListener("resize", fitStage);
 
 // --- QR code vers la page invité ---
-function initQR() {
+function initQR(url) {
   // On génère le QR code en grand hors écran, puis on le recadre au pixel près
   // pour qu'il remplisse exactement le cadre blanc (corrige le décalage coin haut-gauche).
   const holder = document.createElement("div");
   holder.style.cssText = "position:absolute;left:-9999px;top:0;";
   document.body.appendChild(holder);
-  new QRCode(holder, { text: GUEST_URL, width: 600, height: 600, correctLevel: QRCode.CorrectLevel.M });
+  new QRCode(holder, { text: url || GUEST_URL, width: 600, height: 600, correctLevel: QRCode.CorrectLevel.M });
   const src = holder.querySelector("canvas");
   const w = src.width, h = src.height;
   const px = src.getContext("2d").getImageData(0, 0, w, h).data;
@@ -711,10 +748,13 @@ async function fetchNewPhotos() {
       if (!seenIds.has(p.id)) {
         seenIds.add(p.id);
         allPhotos.push(p);
-        if (!isPaused) photoQueue.push(p);
+        checkCelebrate();
+        if (approvalMode) pendingApproval.push(p);
+        else if (!isPaused) photoQueue.push(p);
       }
     });
     document.getElementById("photo-count").textContent = allPhotos.length;
+    firstFetchDone = true;
     if (!isPaused) processQueue();
   } catch (err) {
     console.error("Erreur de récupération des photos", err);
@@ -780,6 +820,7 @@ document.getElementById("toggle-qr-btn").addEventListener("click", () => {
   const btn = document.getElementById("toggle-qr-btn");
   const hidden = qr.style.display === "none";
   qr.style.display = hidden ? "block" : "none";
+  document.getElementById("qr-label").style.display = hidden ? "block" : "none";
   btn.textContent = hidden ? "Cacher QR code" : "Afficher QR code";
 });
 
@@ -875,7 +916,7 @@ function showPhoto(photo) {
 
   const slot = { el, photo, index };
   activeSlots.push(slot);
-  if (!photo.test) shownCount++;
+  if (!photo.test && !photo.replay) shownCount++;
 
   const duration = photo.test ? 8000 : currentDuration();
   setTimeout(() => removePhoto(slot), duration);
@@ -970,7 +1011,7 @@ document.getElementById("text-input").addEventListener("keydown", (e) => {
 // --- Compteurs : photos diffusées / en attente / téléphones connectés ---
 let shownCount = 0;
 function updateCounters() {
-  document.getElementById("queue-count").textContent = photoQueue.filter(p => !p.test).length;
+  document.getElementById("queue-count").textContent = photoQueue.filter(p => !p.test && !p.replay).length;
   document.getElementById("shown-count").textContent = shownCount;
 }
 setInterval(updateCounters, 500);
@@ -982,6 +1023,464 @@ async function updateGuests() {
     if (typeof data.moderation === "boolean") { moderationOn = data.moderation; renderModeration(); }
   } catch (e) {}
 }
+
+// ===== Fonctions avancées : promos, ambiance, diffusion, affichages spéciaux =====
+const $ = (id) => document.getElementById(id);
+function lsGet(k, d) { try { const v = localStorage.getItem(k); return v ? JSON.parse(v) : d; } catch (e) { return d; } }
+function lsSet(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) {} }
+function setToggle(id, on, label) {
+  const b = $(id);
+  b.classList.toggle("on", !!on);
+  b.textContent = label + " : " + (on ? "ON" : "OFF");
+}
+
+// --- Annonces (promos, compte à rebours, horloge) : une seule à la fois ---
+let announceTimer = null;
+let countdownTimer = null;
+let clockTimer = null;
+let clockOn = false;
+
+function renderAnnounce(name, price, label, size) {
+  const el = $("announce");
+  const nameEl = $("announce-name");
+  const priceEl = $("announce-price");
+  const labelEl = $("announce-label");
+  nameEl.textContent = name;
+  nameEl.style.fontSize = size || (name.length > 22 ? "70px" : name.length > 14 ? "95px" : "");
+  priceEl.textContent = price || "";
+  priceEl.style.display = price ? "" : "none";
+  labelEl.textContent = label || "";
+  labelEl.style.display = label ? "" : "none";
+  el.classList.remove("show");
+  void el.offsetWidth;
+  el.classList.add("show");
+}
+function stopLive() {
+  clearInterval(countdownTimer); countdownTimer = null;
+  clearInterval(clockTimer); clockTimer = null;
+  clockOn = false;
+  setToggle("clock-btn", false, "Horloge");
+}
+function showAnnounce(name, price, ms) {
+  stopLive();
+  clearTimeout(announceTimer);
+  renderAnnounce(name, price);
+  if (ms) announceTimer = setTimeout(hideAnnounce, ms);
+}
+function hideAnnounce() {
+  stopLive();
+  clearTimeout(announceTimer);
+  $("announce").classList.remove("show");
+}
+function fmtTime(s) {
+  const p = (n) => String(n).padStart(2, "0");
+  const h = Math.floor(s / 3600), m = Math.floor((s % 3600) / 60);
+  return (h ? p(h) + ":" : "") + p(m) + ":" + p(s % 60);
+}
+function startCountdown(seconds, label) {
+  seconds = Math.max(1, Math.min(21600, Math.floor(seconds) || 60));
+  stopLive();
+  clearTimeout(announceTimer);
+  const end = Date.now() + seconds * 1000;
+  renderAnnounce(fmtTime(seconds), "", label, "200px");
+  countdownTimer = setInterval(() => {
+    const left = Math.ceil((end - Date.now()) / 1000);
+    if (left <= 0) {
+      clearInterval(countdownTimer);
+      countdownTimer = null;
+      showAnnounce("C'EST PARTI !", "", 7000);
+      $("meme-btn").click();
+    } else {
+      $("announce-name").textContent = fmtTime(left);
+    }
+  }, 250);
+}
+function stopCountdown() { if (countdownTimer) hideAnnounce(); }
+function toggleClock() {
+  if (clockOn) { hideAnnounce(); return; }
+  stopLive();
+  clearTimeout(announceTimer);
+  clockOn = true;
+  setToggle("clock-btn", true, "Horloge");
+  const tick = () => {
+    $("announce-name").textContent = new Date().toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" });
+  };
+  renderAnnounce("--:--", "", "", "220px");
+  tick();
+  clockTimer = setInterval(tick, 1000);
+}
+
+// --- Promos personnalisables (nom + prix), enregistrées dans ce navigateur ---
+const ANNOUNCE_MS = 8000;
+let promos = lsGet("promos", [
+  { name: "Shot", price: "1€" },
+  { name: "Shot", price: "2€" },
+  { name: "Happy Hour", price: "" },
+  { name: "Dernière commande", price: "" }
+]);
+function showPromo(i) {
+  const p = promos[i];
+  if (p) showAnnounce(p.name, p.price, ANNOUNCE_MS);
+}
+function renderPromos() {
+  const box = $("promo-list");
+  box.innerHTML = "";
+  promos.forEach((p, i) => {
+    const wrap = document.createElement("span");
+    wrap.className = "chip";
+    const main = document.createElement("button");
+    main.textContent = (p.name + " " + p.price).trim();
+    main.addEventListener("click", () => showPromo(i));
+    const x = document.createElement("button");
+    x.className = "chip-x";
+    x.textContent = "✕";
+    x.addEventListener("click", () => { promos.splice(i, 1); lsSet("promos", promos); renderPromos(); });
+    wrap.append(main, x);
+    box.appendChild(wrap);
+  });
+}
+$("promo-add").addEventListener("click", () => {
+  const name = $("promo-name").value.trim();
+  if (!name) return;
+  promos.push({ name, price: $("promo-price").value.trim() });
+  lsSet("promos", promos);
+  $("promo-name").value = "";
+  $("promo-price").value = "";
+  renderPromos();
+});
+$("announce-hide").addEventListener("click", hideAnnounce);
+renderPromos();
+
+// --- Texte défilant ---
+let tickerOn = false;
+function startTicker(text) {
+  const t = $("ticker"), s = $("ticker-span");
+  s.textContent = text;
+  t.classList.add("show");
+  s.style.animation = "none";
+  void s.offsetWidth;
+  const dur = (s.offsetWidth + 2688) / 170;
+  s.style.animation = `ticker-scroll ${dur}s linear infinite`;
+  tickerOn = true;
+}
+function stopTicker() { $("ticker").classList.remove("show"); tickerOn = false; }
+function startTickerPromos() {
+  if (!promos.length) return;
+  const line = promos.map(p => (p.name + " " + p.price).trim().toUpperCase()).join("   ★   ");
+  startTicker(line + "   ★   " + line);
+}
+$("ticker-start").addEventListener("click", () => { const v = $("ticker-text").value.trim(); if (v) startTicker(v); });
+$("ticker-stop").addEventListener("click", stopTicker);
+$("ticker-promos").addEventListener("click", startTickerPromos);
+
+// --- Ambiance : thèmes de fond, vitesse, luminosité ---
+const THEMES = {
+  "Miami": "linear-gradient(135deg, #2d0a4e 0%, #7b2d8e 25%, #e0457b 50%, #ff7a5c 75%, #2fae6e 100%)",
+  "Néon bleu": "linear-gradient(135deg, #020024 0%, #0b2a8f 30%, #00a3ff 55%, #00f0ff 80%, #7a00ff 100%)",
+  "Sunset": "linear-gradient(135deg, #3a0ca3 0%, #f72585 40%, #ff9e00 80%, #ffd60a 100%)",
+  "Tropical": "linear-gradient(135deg, #003d33 0%, #00a86b 35%, #b8f200 65%, #ffd60a 100%)",
+  "Violet": "linear-gradient(135deg, #12002b 0%, #5a189a 40%, #c77dff 75%, #ff5da2 100%)",
+  "Feu": "linear-gradient(135deg, #1a0000 0%, #8a0000 35%, #ff4500 70%, #ffd000 100%)",
+  "Aurore": "linear-gradient(135deg, #00203f 0%, #00a896 30%, #7dffb2 55%, #b388ff 80%, #00203f 100%)",
+  "Océan": "linear-gradient(135deg, #001d3d 0%, #0077b6 35%, #00b4d8 65%, #90e0ef 100%)",
+  "Bonbon": "linear-gradient(135deg, #ff5da2 0%, #ff9ee5 30%, #a0e7ff 65%, #c8ffbe 100%)",
+  "Cyberpunk": "linear-gradient(135deg, #0d0221 0%, #ff2a6d 35%, #05d9e8 70%, #d1f7ff 100%)",
+  "Or": "linear-gradient(135deg, #1a1200 0%, #7a5c00 30%, #ffd700 60%, #fff2a8 80%, #7a5c00 100%)",
+  "Glace": "linear-gradient(135deg, #0b132b 0%, #1c2541 30%, #5bc0be 65%, #e0fbfc 100%)",
+  "Arc-en-ciel": "linear-gradient(135deg, #ff0000 0%, #ff9900 17%, #ffee00 34%, #22cc44 50%, #0088ff 67%, #8844ff 84%, #ff0066 100%)",
+  "Noir": "linear-gradient(135deg, #000000 0%, #111111 50%, #000000 100%)"
+};
+let currentTheme = "Miami";
+let brightness = 100;
+// Fond du bandeau : thème, couleur unie, dégradé perso ou image
+let currentBg = null;
+function applyBg(bg) {
+  const st = $("stage");
+  currentBg = bg;
+  if (bg.type === "image") {
+    st.style.backgroundImage = `url(${bg.value})`;
+    st.style.backgroundSize = "cover";
+    st.style.animationPlayState = "paused";
+  } else {
+    st.style.backgroundSize = "";
+    st.style.animationPlayState = "";
+    st.style.backgroundImage =
+      bg.type === "solid" ? `linear-gradient(${bg.value}, ${bg.value})` :
+      bg.type === "grad" ? `linear-gradient(135deg, ${bg.value[0]}, ${bg.value[1]}, ${bg.value[0]})` :
+      (THEMES[bg.value] || THEMES["Miami"]);
+  }
+  currentTheme = bg.type === "theme" ? bg.value : "";
+  lsSet("bg", bg);
+  document.querySelectorAll("#theme-list button").forEach(b => b.classList.toggle("on", currentTheme === b.textContent));
+}
+function setTheme(name) { if (THEMES[name]) applyBg({ type: "theme", value: name }); }
+
+$("bg-solid").addEventListener("click", () => applyBg({ type: "solid", value: $("bg-c1").value }));
+$("bg-grad").addEventListener("click", () => applyBg({ type: "grad", value: [$("bg-c1").value, $("bg-c2").value] }));
+$("bg-reset").addEventListener("click", () => applyBg({ type: "theme", value: "Miami" }));
+$("bg-image-btn").addEventListener("click", () => $("bg-image-input").click());
+$("bg-image-input").addEventListener("change", (e) => {
+  const file = e.target.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = () => {
+    const img = new Image();
+    img.onload = () => {
+      // On réduit l'image pour qu'elle reste légère (idéal : format très large, 7 pour 1)
+      const scale = Math.min(1, 1600 / img.width);
+      const c = document.createElement("canvas");
+      c.width = Math.round(img.width * scale);
+      c.height = Math.round(img.height * scale);
+      c.getContext("2d").drawImage(img, 0, 0, c.width, c.height);
+      applyBg({ type: "image", value: c.toDataURL("image/jpeg", 0.82) });
+    };
+    img.src = reader.result;
+  };
+  reader.readAsDataURL(file);
+  e.target.value = "";
+});
+
+// Effets animés par-dessus le fond (derrière les photos)
+const FX_LIST = ["Aucun", "Étoiles", "Bulles", "Confettis", "Neige"];
+let currentFx = "Aucun";
+function setFx(name) {
+  if (!FX_LIST.includes(name)) return;
+  currentFx = name;
+  lsSet("fx", name);
+  const layer = $("fx-layer");
+  layer.innerHTML = "";
+  document.querySelectorAll("#fx-list button").forEach(b => b.classList.toggle("on", b.textContent === name));
+  if (name === "Aucun") return;
+  const cfg = { "Étoiles": ["fx-star", 140], "Bulles": ["fx-bubble", 30], "Confettis": ["fx-confetti", 60], "Neige": ["fx-snow", 80] }[name];
+  const colors = ["#ff4d8d", "#ffd60a", "#34c759", "#0a84ff", "#ff9500", "#bf5af2"];
+  for (let i = 0; i < cfg[1]; i++) {
+    const s = document.createElement("span");
+    s.className = "fx " + cfg[0];
+    s.style.left = Math.random() * 100 + "%";
+    s.style.setProperty("--d", (cfg[0] === "fx-star" ? 1.5 + Math.random() * 3 : 4 + Math.random() * 6) + "s");
+    s.style.setProperty("--delay", (-Math.random() * 8) + "s");
+    if (cfg[0] === "fx-star") s.style.top = Math.random() * 100 + "%";
+    if (cfg[0] === "fx-bubble") { const sz = 14 + Math.random() * 34; s.style.width = sz + "px"; s.style.height = sz + "px"; }
+    if (cfg[0] === "fx-confetti") s.style.background = colors[i % colors.length];
+    layer.appendChild(s);
+  }
+}
+FX_LIST.forEach(name => {
+  const b = document.createElement("button");
+  b.textContent = name;
+  b.addEventListener("click", () => setFx(name));
+  $("fx-list").appendChild(b);
+});
+function setSpeed(v) {
+  v = Math.max(5, Math.min(60, Number(v) || 20));
+  $("stage").style.animationDuration = v + "s";
+  $("speed-slider").value = v;
+  $("speed-value").textContent = v + "s";
+  lsSet("speed", v);
+}
+function setBrightness(v) {
+  v = Math.max(10, Math.min(100, Number(v) || 100));
+  brightness = v;
+  $("dim-layer").style.opacity = 1 - v / 100;
+  $("bright-slider").value = v;
+  $("bright-value").textContent = v + "%";
+}
+Object.keys(THEMES).forEach(name => {
+  const b = document.createElement("button");
+  b.textContent = name;
+  b.addEventListener("click", () => setTheme(name));
+  $("theme-list").appendChild(b);
+});
+$("speed-slider").addEventListener("input", (e) => setSpeed(e.target.value));
+$("bright-slider").addEventListener("input", (e) => setBrightness(e.target.value));
+applyBg(lsGet("bg", { type: "theme", value: "Miami" }));
+setFx(lsGet("fx", "Aucun"));
+setSpeed(lsGet("speed", 20));
+
+// --- Diffusion : rediffusion, validation manuelle, célébrations ---
+let replayOn = false;
+let approvalMode = false;
+let celebrateOn = false;
+let celebrateN = lsGet("celebrateN", 50);
+let firstFetchDone = false;
+let pendingApproval = [];
+$("celebrate-n").value = celebrateN;
+$("celebrate-n").addEventListener("change", () => {
+  celebrateN = Math.max(5, parseInt($("celebrate-n").value, 10) || 50);
+  $("celebrate-n").value = celebrateN;
+  lsSet("celebrateN", celebrateN);
+});
+$("replay-btn").addEventListener("click", () => { replayOn = !replayOn; setToggle("replay-btn", replayOn, "Rediffusion auto"); });
+$("approval-btn").addEventListener("click", () => { approvalMode = !approvalMode; setToggle("approval-btn", approvalMode, "Validation manuelle"); renderPending(true); });
+$("celebrate-btn").addEventListener("click", () => { celebrateOn = !celebrateOn; setToggle("celebrate-btn", celebrateOn, "Célébrations"); });
+
+function checkCelebrate() {
+  if (!firstFetchDone || !celebrateOn) return;
+  if (allPhotos.length % celebrateN === 0) {
+    showAnnounce("🎉 " + allPhotos.length + "e photo ! 🎉", "", 6000);
+    $("meme-btn").click();
+  }
+}
+
+// Rediffusion : si peu de photos arrivent, le mur repasse d'anciennes photos au hasard
+setInterval(() => {
+  if (!replayOn || isPaused || testMode) return;
+  if (photoQueue.length > 0 || activeSlots.length >= MAX_SLOTS) return;
+  const shownIds = new Set(activeSlots.map(s => s.photo.id));
+  const pool = allPhotos.filter(p => !shownIds.has(p.id));
+  if (!pool.length) return;
+  const p = pool[Math.floor(Math.random() * pool.length)];
+  photoQueue.push({ ...p, replay: true });
+  processQueue();
+}, 7000);
+
+$("remove-last-btn").addEventListener("click", () => {
+  const s = activeSlots[activeSlots.length - 1];
+  if (s) removePhoto(s);
+});
+
+// Validation manuelle : les photos attendent ici jusqu'à validation
+function approvePhoto(id) {
+  const i = pendingApproval.findIndex(p => p.id === id);
+  if (i < 0) return;
+  const [p] = pendingApproval.splice(i, 1);
+  photoQueue.push(p);
+  processQueue();
+  renderPending(true);
+}
+function approveAll() {
+  while (pendingApproval.length) photoQueue.push(pendingApproval.shift());
+  processQueue();
+  renderPending(true);
+}
+function rejectPhoto(id) {
+  const i = pendingApproval.findIndex(p => p.id === id);
+  if (i < 0) return;
+  pendingApproval.splice(i, 1);
+  fetch(`${SERVER_URL}/api/photo-delete?id=${encodeURIComponent(id)}&p=${encodeURIComponent(ADMIN_PASS)}`, { method: "POST" }).catch(() => {});
+  renderPending(true);
+}
+let lastPendingKey = "";
+function renderPending(force) {
+  const key = pendingApproval.map(p => p.id).join(",") + "|" + approvalMode;
+  if (!force && key === lastPendingKey) return;
+  lastPendingKey = key;
+  const box = $("pending-list");
+  box.innerHTML = "";
+  box.style.display = (approvalMode || pendingApproval.length) ? "flex" : "none";
+  if (!pendingApproval.length) {
+    if (approvalMode) box.textContent = "Aucune photo à valider pour le moment.";
+    return;
+  }
+  const all = document.createElement("button");
+  all.textContent = "Tout valider (" + pendingApproval.length + ")";
+  all.addEventListener("click", approveAll);
+  box.appendChild(all);
+  pendingApproval.forEach(p => {
+    const card = document.createElement("div");
+    card.className = "pcard";
+    const img = document.createElement("img");
+    img.src = p.url;
+    const cap = document.createElement("div");
+    cap.textContent = p.caption || "";
+    const ok = document.createElement("button");
+    ok.textContent = "✓";
+    ok.addEventListener("click", () => approvePhoto(p.id));
+    const no = document.createElement("button");
+    no.textContent = "✕";
+    no.addEventListener("click", () => rejectPhoto(p.id));
+    card.append(img, cap, ok, no);
+    box.appendChild(card);
+  });
+}
+setInterval(renderPending, 700);
+
+// --- Tirage au sort : une photo gagnante affichée en grand ---
+let winnerSpin = null;
+let winnerTimer = null;
+function drawWinner(silent) {
+  const pool = allPhotos.filter(p => !p.test);
+  if (!pool.length) { if (!silent) alert("Aucune photo reçue pour le moment."); return; }
+  clearInterval(winnerSpin);
+  clearTimeout(winnerTimer);
+  const layer = $("winner-layer");
+  const img = $("winner-img");
+  const cap = $("winner-caption");
+  $("winner-title").textContent = "Tirage au sort...";
+  layer.classList.add("show");
+  const winner = pool[Math.floor(Math.random() * pool.length)];
+  let ticks = 0;
+  winnerSpin = setInterval(() => {
+    const p = pool[Math.floor(Math.random() * pool.length)];
+    img.src = p.url;
+    cap.textContent = p.caption || "";
+    ticks++;
+    if (ticks >= 28) {
+      clearInterval(winnerSpin);
+      img.src = winner.url;
+      cap.textContent = winner.caption || "";
+      $("winner-title").textContent = "🏆 Gagnant·e ! 🏆";
+      $("meme-btn").click();
+      winnerTimer = setTimeout(() => layer.classList.remove("show"), 10000);
+    }
+  }, 110);
+}
+$("winner-btn").addEventListener("click", () => drawWinner(false));
+
+// --- Logo plein écran ---
+let logoFullOn = false;
+function toggleLogoFull() {
+  const img = $("logo-left-img");
+  if (!logoFullOn && (!img.src || img.style.display === "none")) return;
+  logoFullOn = !logoFullOn;
+  $("logo-full-img").src = img.src;
+  $("logo-full").classList.toggle("show", logoFullOn);
+  setToggle("logo-full-btn", logoFullOn, "Logo plein écran");
+}
+$("logo-full-btn").addEventListener("click", toggleLogoFull);
+$("clock-btn").addEventListener("click", toggleClock);
+
+// --- Compte à rebours ---
+$("cd-start").addEventListener("click", () => startCountdown((parseFloat($("cd-min").value) || 1) * 60, $("cd-label").value.trim()));
+$("cd-midnight").addEventListener("click", () => {
+  const now = new Date();
+  const t = new Date(now);
+  t.setHours(24, 0, 0, 0);
+  startCountdown((t - now) / 1000, $("cd-label").value.trim() || "Minuit dans");
+});
+$("cd-stop").addEventListener("click", stopCountdown);
+
+// --- QR n°2 (ex : Instagram du club), alterné avec le QR du photobooth ---
+let qr2On = false;
+let qr2Showing = false;
+let qr2Timer = null;
+$("qr2-url").value = lsGet("qr2url", "");
+$("qr2-label").value = lsGet("qr2label", "Instagram");
+["qr2-url", "qr2-label"].forEach(id => $(id).addEventListener("change", () => {
+  lsSet("qr2url", $("qr2-url").value.trim());
+  lsSet("qr2label", $("qr2-label").value.trim());
+}));
+function qr2Swap() {
+  const url = $("qr2-url").value.trim();
+  if (!qr2On || !url) return;
+  qr2Showing = !qr2Showing;
+  initQR(qr2Showing ? url : GUEST_URL);
+  $("qr-label").textContent = qr2Showing ? ($("qr2-label").value.trim() || "Instagram") : "Photobooth";
+}
+$("qr2-btn").addEventListener("click", () => {
+  if (!qr2On && !$("qr2-url").value.trim()) return;
+  qr2On = !qr2On;
+  setToggle("qr2-btn", qr2On, "Alterner");
+  clearInterval(qr2Timer);
+  if (qr2On) {
+    qr2Swap();
+    qr2Timer = setInterval(qr2Swap, 15000);
+  } else if (qr2Showing) {
+    qr2Showing = false;
+    initQR(GUEST_URL);
+    $("qr-label").textContent = "Photobooth";
+  }
+});
 
 // --- Modération ON / OFF (texte filtré + visage obligatoire côté invités) ---
 let moderationOn = true;
@@ -1036,6 +1535,59 @@ function runRemoteCommand(c) {
       click("text-show-btn");
       break;
     case "text_clear": click("text-clear-btn"); break;
+    case "promo": showPromo(c.value); break;
+    case "announce_hide": hideAnnounce(); break;
+    case "theme": setTheme(c.text); break;
+    case "speed": setSpeed(c.value); break;
+    case "brightness": setBrightness(c.value); break;
+    case "replay": click("replay-btn"); break;
+    case "approval": click("approval-btn"); break;
+    case "celebrate": click("celebrate-btn"); break;
+    case "remove_last": click("remove-last-btn"); break;
+    case "winner": drawWinner(true); break;
+    case "logo_full": click("logo-full-btn"); break;
+    case "clock": click("clock-btn"); break;
+    case "countdown": startCountdown(c.value, c.text); break;
+    case "countdown_stop": stopCountdown(); break;
+    case "ticker": if (c.text === "promos") startTickerPromos(); else if (c.text) startTicker(c.text); break;
+    case "ticker_stop": stopTicker(); break;
+    case "qr2": click("qr2-btn"); break;
+    case "approve": approvePhoto(c.text); break;
+    case "reject": rejectPhoto(c.text); break;
+    case "approve_all": approveAll(); break;
+    case "fx": setFx(c.text); break;
+    case "bgcolor": if (/^#[0-9a-f]{6}$/i.test(c.text)) applyBg({ type: "solid", value: c.text }); break;
+    case "bggrad": {
+      const [a, b] = c.text.split(",");
+      if (/^#[0-9a-f]{6}$/i.test(a) && /^#[0-9a-f]{6}$/i.test(b)) applyBg({ type: "grad", value: [a, b] });
+      break;
+    }
+    case "promo_add": {
+      const [name, price] = c.text.split("|");
+      if (name && name.trim()) {
+        promos.push({ name: name.trim().slice(0, 24), price: (price || "").trim().slice(0, 10) });
+        lsSet("promos", promos);
+        renderPromos();
+      }
+      break;
+    }
+    case "promo_del":
+      if (promos[c.value]) { promos.splice(c.value, 1); lsSet("promos", promos); renderPromos(); }
+      break;
+    case "qr2_set": {
+      const i = c.text.indexOf("|");
+      const url = (i < 0 ? c.text : c.text.slice(0, i)).trim();
+      const label = i < 0 ? "" : c.text.slice(i + 1).trim();
+      if (url && !/^https?:\/\//i.test(url)) break;
+      $("qr2-url").value = url;
+      if (label) $("qr2-label").value = label;
+      $("qr2-url").dispatchEvent(new Event("change"));
+      break;
+    }
+    case "celebrate_n":
+      $("celebrate-n").value = c.value;
+      $("celebrate-n").dispatchEvent(new Event("change"));
+      break;
     case "duration": {
       const s = document.getElementById("duration-slider");
       s.value = c.value;
@@ -1048,13 +1600,32 @@ async function pushState() {
   const state = {
     received: allPhotos.length,
     shown: shownCount,
-    queue: photoQueue.filter(p => !p.test).length,
+    queue: photoQueue.filter(p => !p.test && !p.replay).length,
     guests: document.getElementById("guest-count").textContent,
     paused: isPaused,
     qrHidden: document.getElementById("qr-code").style.display === "none",
     blackout: document.getElementById("blackout-layer").classList.contains("on"),
     test: testMode,
-    text: customText
+    text: customText,
+    promos: promos,
+    themes: Object.keys(THEMES),
+    theme: currentTheme,
+    fxs: FX_LIST,
+    fx: currentFx,
+    qr2url: $("qr2-url").value,
+    qr2label: $("qr2-label").value,
+    celebrateN: celebrateN,
+    bright: brightness,
+    speed: Number($("speed-slider").value),
+    replay: replayOn,
+    approval: approvalMode,
+    celebrate: celebrateOn,
+    clock: clockOn,
+    logoFull: logoFullOn,
+    ticker: tickerOn,
+    qr2: qr2On,
+    countdown: countdownTimer !== null,
+    pending: pendingApproval.slice(0, 12).map(p => ({ id: p.id, url: p.url, caption: p.caption || "" }))
   };
   try {
     await fetch(`${SERVER_URL}/api/state?p=${encodeURIComponent(ADMIN_PASS)}`, { method: "POST", body: JSON.stringify(state) });
