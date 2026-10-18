@@ -213,7 +213,7 @@
   }
   #toolbar button:hover { background: linear-gradient(180deg, #58585b 0%, #38383a 100%); }
   #toolbar button:active { box-shadow: inset 0 2px 4px rgba(0,0,0,0.6); transform: translateY(1px); }
-  #duration-control, #photo-counter {
+  #duration-control, #photo-counter, #shown-counter, #queue-counter, #guest-counter {
     display: flex;
     align-items: center;
     gap: 10px;
@@ -228,7 +228,7 @@
     color: #999;
   }
   #duration-control input { width: 150px; accent-color: #ff4d8d; }
-  #photo-counter b { color: #ff4d8d; font-size: 15px; }
+  #photo-counter b, #shown-counter b, #queue-counter b, #guest-counter b { color: #ff4d8d; font-size: 15px; }
   #qr-code img { width: 100% !important; height: 100% !important; }
   #idle-text {
     position: absolute;
@@ -285,10 +285,160 @@
   }
   #stage-wrap { position: relative; margin: 0 auto; order: 1; }
   #toolbar { order: 2; }
+  #text-panel {
+    order: 3;
+    width: 100%;
+    max-width: 950px;
+    margin-top: 16px;
+    background: linear-gradient(180deg, #2b2b2e 0%, #1c1c1e 100%);
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: center;
+    gap: 12px;
+    padding: 16px 18px;
+    border-radius: 8px;
+    border: 1px solid #0a0a0a;
+    box-shadow: inset 0 1px 0 rgba(255,255,255,0.08), 0 6px 16px rgba(0,0,0,0.5);
+    font-family: 'Segoe UI', sans-serif;
+    font-size: 11px;
+    letter-spacing: 0.4px;
+    text-transform: uppercase;
+    color: #999;
+  }
+  #text-panel input {
+    flex: 1;
+    min-width: 220px;
+    background: #19191b;
+    color: #fff;
+    border: 1px solid #0a0a0a;
+    border-radius: 5px;
+    padding: 12px 14px;
+    font-size: 14px;
+    box-shadow: inset 0 1px 3px rgba(0,0,0,0.6);
+  }
+  #text-panel button {
+    background: linear-gradient(180deg, #4a4a4d 0%, #2f2f31 100%);
+    color: #e8e8e8;
+    border: 1px solid #111;
+    border-top: 1px solid #5c5c5f;
+    border-radius: 5px;
+    padding: 12px 16px;
+    cursor: pointer;
+    font-size: 12px;
+    font-weight: 600;
+    letter-spacing: 0.4px;
+    text-transform: uppercase;
+    box-shadow: 0 2px 3px rgba(0,0,0,0.5);
+  }
+  #text-panel button:hover { background: linear-gradient(180deg, #58585b 0%, #38383a 100%); }
+  #text-panel button:active { box-shadow: inset 0 2px 4px rgba(0,0,0,0.6); transform: translateY(1px); }
   .polaroid.shuffling {
     transition: transform 0.5s ease, opacity 0.5s ease;
     opacity: 0;
   }
+
+  /* --- Panneaux supplémentaires --- */
+  .cpanel {
+    order: 4;
+    width: 100%;
+    max-width: 950px;
+    margin-top: 16px;
+    background: linear-gradient(180deg, #2b2b2e 0%, #1c1c1e 100%);
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 10px;
+    padding: 14px 18px;
+    border-radius: 8px;
+    border: 1px solid #0a0a0a;
+    box-shadow: inset 0 1px 0 rgba(255,255,255,0.08), 0 6px 16px rgba(0,0,0,0.5);
+    font-family: 'Segoe UI', sans-serif;
+    font-size: 11px;
+    letter-spacing: 0.4px;
+    text-transform: uppercase;
+    color: #999;
+  }
+  .cpanel h3 { width: 100%; font-size: 11px; color: #ff4d8d; letter-spacing: 1.5px; }
+  .cpanel input[type=text], .cpanel input[type=number], .cpanel input[type=url] {
+    background: #19191b; color: #fff; border: 1px solid #0a0a0a; border-radius: 5px;
+    padding: 10px 12px; font-size: 13px; min-width: 0;
+    box-shadow: inset 0 1px 3px rgba(0,0,0,0.6);
+  }
+  .cpanel input[type=range] { accent-color: #ff4d8d; }
+  .cpanel button {
+    background: linear-gradient(180deg, #4a4a4d 0%, #2f2f31 100%);
+    color: #e8e8e8; border: 1px solid #111; border-top: 1px solid #5c5c5f;
+    border-radius: 5px; padding: 10px 14px; cursor: pointer;
+    font-size: 11px; font-weight: 600; letter-spacing: 0.4px; text-transform: uppercase;
+    box-shadow: 0 2px 3px rgba(0,0,0,0.5);
+  }
+  .cpanel button:hover { background: linear-gradient(180deg, #58585b 0%, #38383a 100%); }
+  .cpanel button:active { transform: translateY(1px); }
+  .cpanel button.on { background: linear-gradient(180deg, #ff4d8d 0%, #c2316a 100%); color: #fff; }
+  .cpanel .line { width: 100%; display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
+  .chip { display: inline-flex; }
+  .chip button:first-child { border-radius: 5px 0 0 5px; }
+  .chip .chip-x { border-radius: 0 5px 5px 0; padding: 10px 9px; color: #ff7b7b; }
+  .pcard { display: flex; align-items: center; gap: 8px; background: #19191b; border-radius: 6px; padding: 6px; }
+  .pcard img { width: 64px; height: 64px; object-fit: cover; border-radius: 4px; }
+
+  #qr-label {
+    position: absolute; bottom: 12px; left: 0; right: 0; text-align: center;
+    font: 800 22px 'Helvetica Neue', Arial, sans-serif; letter-spacing: 4px; text-transform: uppercase;
+    color: #fff; text-shadow: 0 2px 8px rgba(0,0,0,0.5);
+  }
+  #dim-layer { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: #000; opacity: 0; pointer-events: none; z-index: 35; }
+  #announce {
+    position: absolute; left: 384px; top: 0; width: 1920px; height: 100%;
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    background: rgba(10,0,30,0.62); pointer-events: none; z-index: 26;
+    opacity: 0; transition: opacity 0.4s ease; text-align: center;
+    font-family: 'Helvetica Neue', Arial, sans-serif;
+  }
+  #announce.show { opacity: 1; }
+  #announce-label { font-size: 40px; font-weight: 700; letter-spacing: 10px; text-transform: uppercase; color: #ffd60a; margin-bottom: 6px; }
+  #announce-row { display: flex; align-items: center; justify-content: center; gap: 60px; }
+  #announce-name {
+    font-size: 130px; font-weight: 900; text-transform: uppercase; letter-spacing: 6px; line-height: 1.05; color: #fff;
+    text-shadow: 0 6px 0 rgba(0,0,0,0.35), 0 0 40px rgba(255,255,255,0.35);
+  }
+  #announce-price {
+    font-size: 150px; font-weight: 900; color: #111; line-height: 1;
+    background: linear-gradient(135deg, #ffd60a, #ff9500);
+    padding: 10px 48px; border-radius: 28px; transform: rotate(-6deg);
+    box-shadow: 0 10px 0 rgba(0,0,0,0.35);
+  }
+  #announce.show #announce-name { animation: announce-slide 0.7s cubic-bezier(0.2, 1.4, 0.4, 1); }
+  #announce.show #announce-price { animation: announce-pop 0.9s cubic-bezier(0.2, 1.6, 0.4, 1) 0.25s both, announce-pulse 1.2s ease-in-out 1.3s infinite; }
+  @keyframes announce-slide { from { transform: translateX(-300px); opacity: 0; } to { transform: none; opacity: 1; } }
+  @keyframes announce-pop { from { transform: rotate(-6deg) scale(0); } to { transform: rotate(-6deg) scale(1); } }
+  @keyframes announce-pulse { 0%, 100% { transform: rotate(-6deg) scale(1); } 50% { transform: rotate(-6deg) scale(1.08); } }
+
+  #winner-layer {
+    position: absolute; left: 384px; top: 0; width: 1920px; height: 100%;
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    background: rgba(10,0,30,0.72); pointer-events: none; z-index: 27;
+    opacity: 0; transition: opacity 0.4s ease;
+  }
+  #winner-layer.show { opacity: 1; }
+  #winner-title { font: 900 42px 'Helvetica Neue', Arial, sans-serif; color: #ffd60a; letter-spacing: 6px; text-transform: uppercase; margin-bottom: 10px; }
+  #winner-card { background: #fff; padding: 10px 10px 26px; width: 250px; transform: rotate(-3deg); box-shadow: 0 10px 30px rgba(0,0,0,0.6); }
+  #winner-card img { width: 100%; height: 210px; object-fit: cover; display: block; }
+  #winner-caption { font-family: 'Comic Sans MS', cursive, sans-serif; font-size: 20px; color: #333; text-align: center; margin-top: 6px; min-height: 24px; }
+
+  #ticker { position: absolute; left: 0; bottom: 0; width: 100%; height: 54px; background: rgba(0,0,0,0.6); overflow: hidden; display: none; align-items: center; z-index: 22; }
+  #ticker.show { display: flex; }
+  #ticker-span { display: inline-block; white-space: nowrap; font: 800 30px 'Helvetica Neue', Arial, sans-serif; letter-spacing: 5px; text-transform: uppercase; color: #fff; }
+  @keyframes ticker-scroll { from { transform: translateX(2688px); } to { transform: translateX(-100%); } }
+
+  #logo-full {
+    position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+    background: rgba(0,0,0,0.88); display: flex; align-items: center; justify-content: center;
+    opacity: 0; pointer-events: none; transition: opacity 0.6s ease; z-index: 28;
+  }
+  #logo-full.show { opacity: 1; }
+  #logo-full img { height: 88%; object-fit: contain; filter: drop-shadow(0 0 30px rgba(255,255,255,0.25)); }
 </style>
 </head>
 <body>
@@ -312,6 +462,7 @@
   <button id="logo-btn">Charger logo</button>
   <input type="file" id="logo-left-input" accept="image/*" style="display:none;">
   <button id="test-btn">Mode test</button>
+  <button id="moderation-btn">Modération : ON</button>
   <button id="purge-btn" style="color:#ff7b7b;">Purger les photos</button>
   <div id="duration-control">
     <span>Durée d'affichage :</span>
@@ -319,7 +470,10 @@
     <span id="duration-value">30s</span>
   </div>
   <div id="photo-counter">Photos reçues : <b id="photo-count">0</b></div>
-  <span style="font-size:11px; color:#777; align-self:center;">v5</span>
+  <div id="shown-counter">Diffusées : <b id="shown-count">0</b></div>
+  <div id="queue-counter">En attente : <b id="queue-count">0</b></div>
+  <div id="guest-counter">Téléphones connectés : <b id="guest-count">0</b></div>
+  <span style="font-size:11px; color:#777; align-self:center;">v8</span>
 </div>
 <div id="stage-wrap">
 <div id="stage">
@@ -327,6 +481,17 @@
   <div id="effect-layer"></div>
   <div id="strobe-layer"></div>
   <div id="blackout-layer"></div>
+  <div id="dim-layer"></div>
+  <div id="announce">
+    <div id="announce-label"></div>
+    <div id="announce-row"><span id="announce-name"></span><span id="announce-price"></span></div>
+  </div>
+  <div id="winner-layer">
+    <div id="winner-title">Gagnant·e !</div>
+    <div id="winner-card"><img id="winner-img" /><div id="winner-caption"></div></div>
+  </div>
+  <div id="ticker"><span id="ticker-span"></span></div>
+  <div id="logo-full"><img id="logo-full-img" /></div>
   
   <div id="logo-left">
     <img id="logo-left-img" style="display:none;" />
@@ -340,8 +505,82 @@
   <div id="logo-right">
     <img id="logo-right-img" style="display:none;" />
     <div id="qr-code"></div>
+    <div id="qr-label">Photobooth</div>
   </div>
 </div>
+</div>
+
+<div id="text-panel">
+  <span>Message à l'écran :</span>
+  <input id="text-input" maxlength="40" placeholder="Ex : Bienvenue au Portland Pub !" />
+  <button id="text-show-btn">Afficher</button>
+  <button id="text-clear-btn">Retirer</button>
+</div>
+
+<div class="cpanel" id="promo-panel">
+  <h3>Promos &amp; annonces</h3>
+  <input type="text" id="promo-name" placeholder="Nom (ex : Shot)" maxlength="24" style="flex:2; min-width:140px;">
+  <input type="text" id="promo-price" placeholder="Prix (ex : 1€)" maxlength="10" style="width:100px;">
+  <button id="promo-add">Ajouter</button>
+  <div class="line" id="promo-list"></div>
+  <div class="line">
+    <button id="announce-hide">Retirer l'annonce</button>
+    <button id="ticker-promos">Promos en défilement</button>
+  </div>
+</div>
+
+<div class="cpanel" id="ambiance-panel">
+  <h3>Ambiance</h3>
+  <div class="line" id="theme-list"></div>
+  <div class="line">
+    <span>Vitesse du fond</span>
+    <input type="range" id="speed-slider" min="5" max="60" value="20">
+    <span id="speed-value">20s</span>
+    <span style="margin-left:20px;">Luminosité</span>
+    <input type="range" id="bright-slider" min="10" max="100" value="100">
+    <span id="bright-value">100%</span>
+  </div>
+</div>
+
+<div class="cpanel" id="show-panel">
+  <h3>Diffusion des photos</h3>
+  <button id="replay-btn">Rediffusion auto : OFF</button>
+  <button id="approval-btn">Validation manuelle : OFF</button>
+  <button id="celebrate-btn">Célébrations : OFF</button>
+  <span>toutes les <input type="number" id="celebrate-n" value="50" min="5" max="1000" style="width:70px;"> photos</span>
+  <div class="line">
+    <button id="remove-last-btn">Retirer la dernière photo</button>
+    <button id="winner-btn">Tirage au sort</button>
+  </div>
+  <div class="line" id="pending-list" style="display:none;"></div>
+</div>
+
+<div class="cpanel" id="live-panel">
+  <h3>Affichages spéciaux</h3>
+  <div class="line">
+    <button id="logo-full-btn">Logo plein écran : OFF</button>
+    <button id="clock-btn">Horloge : OFF</button>
+  </div>
+  <div class="line">
+    <span>Compte à rebours</span>
+    <input type="number" id="cd-min" value="10" min="1" max="360" style="width:70px;"> <span>min</span>
+    <input type="text" id="cd-label" placeholder="Libellé (ex : Prochain shot)" maxlength="30" style="flex:1; min-width:160px;">
+    <button id="cd-start">Lancer</button>
+    <button id="cd-midnight">Jusqu'à minuit</button>
+    <button id="cd-stop">Annuler</button>
+  </div>
+  <div class="line">
+    <span>Texte défilant</span>
+    <input type="text" id="ticker-text" placeholder="Ex : Happy Hour jusqu'à 22h !" maxlength="120" style="flex:1; min-width:200px;">
+    <button id="ticker-start">Lancer</button>
+    <button id="ticker-stop">Arrêter</button>
+  </div>
+  <div class="line">
+    <span>QR n°2</span>
+    <input type="url" id="qr2-url" placeholder="https://instagram.com/..." style="flex:1; min-width:200px;">
+    <input type="text" id="qr2-label" placeholder="Libellé" maxlength="14" style="width:120px;">
+    <button id="qr2-btn">Alterner : OFF</button>
+  </div>
 </div>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
@@ -351,7 +590,7 @@ const GUEST_URL = new URL("guest.html", window.location.href).href;
 const ADMIN_USER = "NIKO";
 const ADMIN_PASS = "27012022";
 
-const MAX_SLOTS = 4;
+const MAX_SLOTS = 5;
 let BASE_DURATION = 30000;
 let MIN_DURATION = 10000;
 const QUEUE_THRESHOLD = 3;
@@ -455,6 +694,10 @@ document.getElementById("logo-btn").addEventListener("click", () => {
 function startPolling() {
   pollInterval = setInterval(fetchNewPhotos, 3000);
   fetchNewPhotos();
+  setInterval(updateGuests, 5000);
+  updateGuests();
+  setInterval(pollCommands, 700);
+  setInterval(pushState, 2000);
 }
 
 let allPhotos = [];
@@ -586,11 +829,34 @@ const slotPositions = [
   { left: 1560, top: 80, rot: -5 }
 ];
 
+// 5 emplacements répartis sur toute la zone photos (1920 px)
+const SLOT_LAYOUT = [
+  { left: 40,   top: 55, rot: -6 },
+  { left: 445,  top: 25, rot: 4 },
+  { left: 850,  top: 70, rot: -3 },
+  { left: 1255, top: 30, rot: 6 },
+  { left: 1660, top: 65, rot: -5 }
+];
+
+// Choisit au hasard parmi les emplacements libres (jamais deux photos au même endroit)
+function pickFreeSlot() {
+  const used = new Set(activeSlots.map(s => s.index));
+  const free = SLOT_LAYOUT.map((p, i) => i).filter(i => !used.has(i));
+  return free.length ? free[Math.floor(Math.random() * free.length)] : 0;
+}
+
 function showPhoto(photo) {
   const zone = document.getElementById("photo-zone");
   const el = document.createElement("div");
   el.className = "polaroid entering";
-  const pos = slotPositions[activeSlots.length % slotPositions.length];
+  const index = pickFreeSlot();
+  const base = SLOT_LAYOUT[index];
+  // petite variation aléatoire pour un rendu "accroché en vrac"
+  const pos = {
+    left: base.left + (Math.random() * 30 - 15),
+    top: base.top + (Math.random() * 30 - 15),
+    rot: base.rot + (Math.random() * 6 - 3)
+  };
   el.style.left = pos.left + "px";
   el.style.top = pos.top + "px";
   const img = document.createElement("img");
@@ -607,8 +873,9 @@ function showPhoto(photo) {
     el.classList.remove("entering");
   });
 
-  const slot = { el, photo };
+  const slot = { el, photo, index };
   activeSlots.push(slot);
+  if (!photo.test) shownCount++;
 
   const duration = photo.test ? 8000 : currentDuration();
   setTimeout(() => removePhoto(slot), duration);
@@ -630,27 +897,169 @@ const IDLE_MESSAGES = [
   { main: "Prends la pose", sub: "Scanne · Souris · Envoie" }
 ];
 let idleIndex = 0;
+let customText = "";
+let idleTimer = null;
+let idleHideTimer = null;
 function isIdle() { return activeSlots.length === 0 && photoQueue.length === 0; }
+function scheduleIdle(ms) { clearTimeout(idleTimer); idleTimer = setTimeout(idleCycle, ms); }
+function customFontSize(t) {
+  if (t.length <= 15) return "";
+  if (t.length <= 18) return "120px";
+  if (t.length <= 23) return "90px";
+  return "70px";
+}
 function idleCycle() {
+  clearTimeout(idleHideTimer);
   const el = document.getElementById("idle-text");
+  const mainEl = document.getElementById("idle-main");
+  const subEl = document.getElementById("idle-sub");
   if (!isIdle()) {
     el.classList.remove("show");
-    setTimeout(idleCycle, 1500);
+    scheduleIdle(1000);
     return;
   }
+  if (customText) {
+    // Message personnalisé : fixe, remplace l'animation tant qu'il est actif
+    if (mainEl.textContent !== customText || !el.classList.contains("show")) {
+      mainEl.textContent = customText;
+      mainEl.style.fontSize = customFontSize(customText);
+      subEl.style.display = "none";
+      el.classList.remove("show");
+      void el.offsetWidth;
+      el.classList.add("show");
+    }
+    scheduleIdle(1000);
+    return;
+  }
+  mainEl.style.fontSize = "";
+  subEl.style.display = "";
   const m = IDLE_MESSAGES[idleIndex % IDLE_MESSAGES.length];
   idleIndex++;
-  document.getElementById("idle-main").textContent = m.main;
-  document.getElementById("idle-sub").textContent = m.sub;
+  mainEl.textContent = m.main;
+  subEl.textContent = m.sub;
   el.classList.remove("show");
   void el.offsetWidth;
   el.classList.add("show");
-  setTimeout(() => {
+  idleHideTimer = setTimeout(() => {
     el.classList.remove("show");
-    setTimeout(idleCycle, 3500);
+    scheduleIdle(3500);
   }, 6500);
 }
-setTimeout(idleCycle, 1000);
+scheduleIdle(1000);
+
+// --- Panneau "Message à l'écran" ---
+document.getElementById("text-show-btn").addEventListener("click", () => {
+  const v = document.getElementById("text-input").value.trim();
+  if (!v) return;
+  customText = v;
+  clearTimeout(idleHideTimer);
+  document.getElementById("idle-text").classList.remove("show");
+  idleCycle();
+});
+document.getElementById("text-clear-btn").addEventListener("click", () => {
+  customText = "";
+  document.getElementById("text-input").value = "";
+  clearTimeout(idleHideTimer);
+  document.getElementById("idle-text").classList.remove("show");
+  idleCycle();
+});
+document.getElementById("text-input").addEventListener("keydown", (e) => {
+  if (e.key === "Enter") document.getElementById("text-show-btn").click();
+});
+
+// --- Compteurs : photos diffusées / en attente / téléphones connectés ---
+let shownCount = 0;
+function updateCounters() {
+  document.getElementById("queue-count").textContent = photoQueue.filter(p => !p.test).length;
+  document.getElementById("shown-count").textContent = shownCount;
+}
+setInterval(updateCounters, 500);
+async function updateGuests() {
+  try {
+    const res = await fetch(`${SERVER_URL}/api/guests`);
+    const data = await res.json();
+    document.getElementById("guest-count").textContent = data.count;
+    if (typeof data.moderation === "boolean") { moderationOn = data.moderation; renderModeration(); }
+  } catch (e) {}
+}
+
+// --- Modération ON / OFF (texte filtré + visage obligatoire côté invités) ---
+let moderationOn = true;
+function renderModeration() {
+  const b = document.getElementById("moderation-btn");
+  b.textContent = "Modération : " + (moderationOn ? "ON" : "OFF");
+  b.style.color = moderationOn ? "" : "#ff7b7b";
+}
+document.getElementById("moderation-btn").addEventListener("click", async () => {
+  try {
+    const res = await fetch(`${SERVER_URL}/api/moderation?on=${moderationOn ? 0 : 1}&p=${encodeURIComponent(ADMIN_PASS)}`, { method: "POST" });
+    const data = await res.json();
+    moderationOn = data.moderation;
+    renderModeration();
+  } catch (e) {}
+});
+
+// --- Télécommande : exécute les ordres envoyés depuis le téléphone (remote.html) ---
+let lastCmdId = null;
+let strobeSafety = null;
+async function pollCommands() {
+  try {
+    const res = await fetch(`${SERVER_URL}/api/commands?after=${lastCmdId || 0}&p=${encodeURIComponent(ADMIN_PASS)}`);
+    const data = await res.json();
+    // Premier passage (ou serveur redémarré) : on ignore les anciens ordres
+    if (lastCmdId === null || data.last < lastCmdId) { lastCmdId = data.last; return; }
+    data.commands.forEach(runRemoteCommand);
+    lastCmdId = data.last;
+  } catch (e) {}
+}
+function runRemoteCommand(c) {
+  const click = (id) => document.getElementById(id).click();
+  switch (c.cmd) {
+    case "clear": click("clear-btn"); break;
+    case "pause": click("pause-btn"); break;
+    case "qr": click("toggle-qr-btn"); break;
+    case "meme": click("meme-btn"); break;
+    case "blackout": click("blackout-btn"); break;
+    case "test": click("test-btn"); break;
+    case "strobe_on":
+      strobeOn();
+      clearTimeout(strobeSafety);
+      strobeSafety = setTimeout(strobeOff, 15000); // sécurité : coupe seul au bout de 15 s
+      break;
+    case "strobe_off":
+      strobeOff();
+      clearTimeout(strobeSafety);
+      break;
+    case "purge": purgeAll(true); break;
+    case "text_show":
+      document.getElementById("text-input").value = c.text;
+      click("text-show-btn");
+      break;
+    case "text_clear": click("text-clear-btn"); break;
+    case "duration": {
+      const s = document.getElementById("duration-slider");
+      s.value = c.value;
+      s.dispatchEvent(new Event("input"));
+      break;
+    }
+  }
+}
+async function pushState() {
+  const state = {
+    received: allPhotos.length,
+    shown: shownCount,
+    queue: photoQueue.filter(p => !p.test).length,
+    guests: document.getElementById("guest-count").textContent,
+    paused: isPaused,
+    qrHidden: document.getElementById("qr-code").style.display === "none",
+    blackout: document.getElementById("blackout-layer").classList.contains("on"),
+    test: testMode,
+    text: customText
+  };
+  try {
+    await fetch(`${SERVER_URL}/api/state?p=${encodeURIComponent(ADMIN_PASS)}`, { method: "POST", body: JSON.stringify(state) });
+  } catch (e) {}
+}
 // Dès qu'une photo arrive, le texte disparaît immédiatement
 setInterval(() => {
   if (!isIdle()) document.getElementById("idle-text").classList.remove("show");
@@ -694,8 +1103,7 @@ document.getElementById("test-btn").addEventListener("click", () => {
 });
 
 // --- Bouton Purger : supprime définitivement toutes les photos du serveur ---
-document.getElementById("purge-btn").addEventListener("click", async () => {
-  if (!confirm("Supprimer définitivement TOUTES les photos du serveur ?")) return;
+async function purgeAll(silent) {
   try {
     const res = await fetch(`${SERVER_URL}/api/photos`, {
       method: "DELETE",
@@ -706,11 +1114,15 @@ document.getElementById("purge-btn").addEventListener("click", async () => {
     activeSlots.forEach(slot => slot.el.remove());
     activeSlots = [];
     allPhotos = [];
+    shownCount = 0;
     document.getElementById("photo-count").textContent = 0;
-    alert("Toutes les photos ont été supprimées.");
+    if (!silent) alert("Toutes les photos ont été supprimées.");
   } catch (err) {
-    alert("Échec de la suppression : " + err.message);
+    if (!silent) alert("Échec de la suppression : " + err.message);
   }
+}
+document.getElementById("purge-btn").addEventListener("click", () => {
+  if (confirm("Supprimer définitivement TOUTES les photos du serveur ?")) purgeAll(false);
 });
 
 // --- Bouton Mélanger / Effacer : envole toutes les photos actuelles ---
