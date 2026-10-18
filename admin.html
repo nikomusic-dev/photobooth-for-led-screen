@@ -446,6 +446,10 @@
   #panels > * { order: 0 !important; width: 100% !important; max-width: none !important; margin: 0 0 16px 0 !important; break-inside: avoid; }
   #toolbar { max-width: 1500px; }
   @media (max-width: 1000px) { #panels { column-count: 1; } }
+  /* Zone logo gauche agrandie : 460 px */
+  #logo-left { width: 460px; }
+  #photo-zone { left: 460px !important; width: 1844px !important; }
+  #idle-text, #announce, #winner-layer { left: 460px; width: 1844px; }
   .cpanel input[type=color] { width: 40px; height: 34px; border: none; background: none; padding: 0; cursor: pointer; }
 
   /* --- Effets de fond --- */
@@ -493,7 +497,7 @@
   <div id="shown-counter">Diffusées : <b id="shown-count">0</b></div>
   <div id="queue-counter">En attente : <b id="queue-count">0</b></div>
   <div id="guest-counter">Téléphones connectés : <b id="guest-count">0</b></div>
-  <span style="font-size:11px; color:#777; align-self:center;">v11</span>
+  <span style="font-size:11px; color:#777; align-self:center;">v12</span>
 </div>
 <div id="stage-wrap">
 <div id="stage">
@@ -548,6 +552,7 @@
   <div class="line">
     <button id="announce-hide">Retirer l'annonce</button>
     <button id="ticker-promos">Promos en défilement</button>
+    <button id="ticker-stop-promo">Arrêter le défilement</button>
   </div>
 </div>
 
@@ -666,8 +671,7 @@ window.addEventListener("resize", fitStage);
 
 // --- QR code vers la page invité ---
 function initQR(url) {
-  // On génère le QR code en grand hors écran, puis on le recadre au pixel près
-  // pour qu'il remplisse exactement le cadre blanc (corrige le décalage coin haut-gauche).
+  // QR recadré au pixel près
   const holder = document.createElement("div");
   holder.style.cssText = "position:absolute;left:-9999px;top:0;";
   document.body.appendChild(holder);
@@ -862,24 +866,18 @@ function processQueue() {
   }
 }
 
-const slotPositions = [
-  { left: 60,  top: 70,  rot: -6 },
-  { left: 430, top: 40,  rot: 4 },
-  { left: 820, top: 90,  rot: -3 },
-  { left: 1190, top: 30, rot: 6 },
-  { left: 1560, top: 80, rot: -5 }
-];
+// emplacements : voir SLOT_LAYOUT
 
 // 5 emplacements répartis sur toute la zone photos (1920 px)
 const SLOT_LAYOUT = [
-  { left: 40,   top: 55, rot: -6 },
-  { left: 445,  top: 25, rot: 4 },
-  { left: 850,  top: 70, rot: -3 },
-  { left: 1255, top: 30, rot: 6 },
-  { left: 1660, top: 65, rot: -5 }
+  { left: 24,   top: 55, rot: -6 },
+  { left: 411,  top: 25, rot: 4 },
+  { left: 798,  top: 70, rot: -3 },
+  { left: 1185, top: 30, rot: 6 },
+  { left: 1572, top: 65, rot: -5 }
 ];
 
-// Choisit au hasard parmi les emplacements libres (jamais deux photos au même endroit)
+// Emplacement libre au hasard
 function pickFreeSlot() {
   const used = new Set(activeSlots.map(s => s.index));
   const free = SLOT_LAYOUT.map((p, i) => i).filter(i => !used.has(i));
@@ -892,7 +890,7 @@ function showPhoto(photo) {
   el.className = "polaroid entering";
   const index = pickFreeSlot();
   const base = SLOT_LAYOUT[index];
-  // petite variation aléatoire pour un rendu "accroché en vrac"
+  // variation aléatoire
   const pos = {
     left: base.left + (Math.random() * 30 - 15),
     top: base.top + (Math.random() * 30 - 15),
@@ -1171,6 +1169,7 @@ function startTickerPromos() {
 }
 $("ticker-start").addEventListener("click", () => { const v = $("ticker-text").value.trim(); if (v) startTicker(v); });
 $("ticker-stop").addEventListener("click", stopTicker);
+$("ticker-stop-promo").addEventListener("click", stopTicker);
 $("ticker-promos").addEventListener("click", startTickerPromos);
 
 // --- Ambiance : thèmes de fond, vitesse, luminosité ---
