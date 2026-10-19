@@ -169,7 +169,7 @@ let commandSeq = 0;
 let adminState = null;
 const ALLOWED_COMMANDS = ["clear", "pause", "qr", "meme", "strobe_on", "strobe_off", "blackout", "test", "purge", "text_show", "text_clear", "duration",
   "promo", "announce_hide", "theme", "speed", "brightness", "replay", "approval", "celebrate", "remove_last", "winner",
-  "logo_full", "clock", "countdown", "countdown_stop", "ticker", "ticker_stop", "qr2", "approve", "reject", "approve_all", "fx", "bgcolor", "promo_add", "promo_del", "qr2_set", "celebrate_n", "bggrad"];
+  "logo_full", "clock", "countdown", "countdown_stop", "ticker", "ticker_stop", "qr2", "approve", "reject", "approve_all", "fx", "bgcolor", "promo_add", "promo_del", "qr2_set", "celebrate_n", "bggrad", "ann_style"];
 
 app.post("/api/command", (req, res) => {
   if (!isAdmin(req)) return res.status(401).json({ error: "Non autorisé" });
