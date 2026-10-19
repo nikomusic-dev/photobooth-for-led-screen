@@ -120,9 +120,11 @@
   #terms li { margin-bottom: 10px; padding-left: 22px; position: relative; }
   #terms li::before { content: "\2022"; color: #ff4d8d; position: absolute; left: 4px; }
   #terms button { margin: 18px 0 30px; }
+  #fun-link { position: fixed; top: 8px; left: 8px; z-index: 60; background: #ff4d8d; color: #fff; text-decoration: none; font-weight: 700; font-size: 13px; padding: 8px 12px; border-radius: 18px; }
 </style>
 </head>
 <body>
+<a id="fun-link" href="fun.html">🎉 Réagir &amp; voter</a>
 
 <div id="splash">
   <img src="logo.png" alt="Portland Pub" />
@@ -210,6 +212,21 @@ function pingServer() {
 }
 pingServer();
 setInterval(pingServer, 10000);
+
+// Quand un vote est lancé depuis la régie, on bascule les invités sur la page vote (une seule fois par vote).
+function checkVote() {
+  fetch(`${SERVER_URL}/api/fun`).then(r => r.json()).then(d => {
+    if (!d.poll || !d.poll.open) return;
+    if (document.getElementById("preview-view").style.display === "flex") return; // photo en cours : on n'interrompt pas
+    let seen = "";
+    try { seen = sessionStorage.getItem("voteSeen") || ""; } catch (e) {}
+    if (seen === String(d.poll.id)) return;
+    try { sessionStorage.setItem("voteSeen", String(d.poll.id)); } catch (e) {}
+    window.location.href = "fun.html";
+  }).catch(() => {});
+}
+checkVote();
+setInterval(checkVote, 4000);
 
 let currentStream = null;
 let facingMode = "user";
