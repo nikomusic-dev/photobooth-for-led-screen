@@ -84,21 +84,21 @@
   .polaroid {
     position: absolute;
     background: white;
-    padding: 10px 10px 36px 10px;
+    padding: 10px 10px 40px;
     border-radius: 2px;
     box-shadow: 0 8px 24px rgba(0,0,0,0.5);
-    width: 220px;
+    width: 290px;
     transition: opacity 0.6s ease, transform 0.6s ease;
   }
   .polaroid img {
     width: 100%;
-    height: 200px;
+    height: 250px;
     object-fit: cover;
     display: block;
   }
   .polaroid .caption {
     font-family: 'Comic Sans MS', cursive, sans-serif;
-    font-size: 13px;
+    font-size: 17px;
     color: #333;
     text-align: center;
     margin-top: 8px;
@@ -831,11 +831,11 @@ function processQueue() {
 
 
 const SLOT_LAYOUT = [
-  { left: 24,   top: 55, rot: -6 },
-  { left: 411,  top: 25, rot: 4 },
-  { left: 798,  top: 70, rot: -3 },
-  { left: 1185, top: 30, rot: 6 },
-  { left: 1572, top: 65, rot: -5 }
+  { left: 14,   top: 30, rot: -6 },
+  { left: 394,  top: 16, rot: 4 },
+  { left: 774,  top: 34, rot: -3 },
+  { left: 1154, top: 18, rot: 6 },
+  { left: 1534, top: 32, rot: -5 }
 ];
 
 function pickFreeSlot() {
@@ -852,7 +852,7 @@ function showPhoto(photo) {
   const base = SLOT_LAYOUT[index];
   const pos = {
     left: base.left + (Math.random() * 30 - 15),
-    top: base.top + (Math.random() * 30 - 15),
+    top: base.top + (Math.random() * 16 - 8),
     rot: base.rot + (Math.random() * 6 - 3)
   };
   el.style.left = pos.left + "px";
