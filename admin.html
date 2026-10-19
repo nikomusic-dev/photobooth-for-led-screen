@@ -65,15 +65,6 @@
     max-height: 94%;
     object-fit: contain;
   }
-  .logo-upload-btn {
-    font-size: 11px;
-    color: rgba(255,255,255,0.6);
-    background: rgba(0,0,0,0.3);
-    border: 1px dashed rgba(255,255,255,0.4);
-    padding: 4px 8px;
-    border-radius: 4px;
-    cursor: pointer;
-  }
   #qr-code {
     position: absolute;
     top: 50%;
@@ -198,7 +189,7 @@
     font-size: 13px;
     color: #ccc;
   }
-  #toolbar button {
+  #toolbar button, #text-panel button {
     background: linear-gradient(180deg, #4a4a4d 0%, #2f2f31 100%);
     color: #e8e8e8;
     border: 1px solid #111;
@@ -212,8 +203,8 @@
     text-transform: uppercase;
     box-shadow: 0 2px 3px rgba(0,0,0,0.5);
   }
-  #toolbar button:hover { background: linear-gradient(180deg, #58585b 0%, #38383a 100%); }
-  #toolbar button:active { box-shadow: inset 0 2px 4px rgba(0,0,0,0.6); transform: translateY(1px); }
+  #toolbar button:hover, #text-panel button:hover { background: linear-gradient(180deg, #58585b 0%, #38383a 100%); }
+  #toolbar button:active, #text-panel button:active { box-shadow: inset 0 2px 4px rgba(0,0,0,0.6); transform: translateY(1px); }
   #duration-control, #photo-counter, #shown-counter, #queue-counter, #guest-counter {
     display: flex;
     align-items: center;
@@ -318,28 +309,11 @@
     font-size: 14px;
     box-shadow: inset 0 1px 3px rgba(0,0,0,0.6);
   }
-  #text-panel button {
-    background: linear-gradient(180deg, #4a4a4d 0%, #2f2f31 100%);
-    color: #e8e8e8;
-    border: 1px solid #111;
-    border-top: 1px solid #5c5c5f;
-    border-radius: 5px;
-    padding: 12px 16px;
-    cursor: pointer;
-    font-size: 12px;
-    font-weight: 600;
-    letter-spacing: 0.4px;
-    text-transform: uppercase;
-    box-shadow: 0 2px 3px rgba(0,0,0,0.5);
-  }
-  #text-panel button:hover { background: linear-gradient(180deg, #58585b 0%, #38383a 100%); }
-  #text-panel button:active { box-shadow: inset 0 2px 4px rgba(0,0,0,0.6); transform: translateY(1px); }
   .polaroid.shuffling {
     transition: transform 0.5s ease, opacity 0.5s ease;
     opacity: 0;
   }
 
-  /* --- Panneaux supplémentaires --- */
   .cpanel {
     order: 4;
     width: 100%;
@@ -410,8 +384,8 @@
     padding: 10px 48px; border-radius: 28px; transform: rotate(-6deg);
     box-shadow: 0 10px 0 rgba(0,0,0,0.35);
   }
-  #announce.show #announce-name { animation: announce-slide 0.7s cubic-bezier(0.2, 1.4, 0.4, 1); }
-  #announce.show #announce-price { animation: announce-pop 0.9s cubic-bezier(0.2, 1.6, 0.4, 1) 0.25s both, announce-pulse 1.2s ease-in-out 1.3s infinite; }
+  #announce.anim-bounce.show #announce-name { animation: announce-slide 0.7s cubic-bezier(0.2, 1.4, 0.4, 1); }
+  #announce.anim-bounce.show #announce-price { animation: announce-pop 0.9s cubic-bezier(0.2, 1.6, 0.4, 1) 0.25s both, announce-pulse 1.2s ease-in-out 1.3s infinite; }
   @keyframes announce-slide { from { transform: translateX(-300px); opacity: 0; } to { transform: none; opacity: 1; } }
   @keyframes announce-pop { from { transform: rotate(-6deg) scale(0); } to { transform: rotate(-6deg) scale(1); } }
   @keyframes announce-pulse { 0%, 100% { transform: rotate(-6deg) scale(1); } 50% { transform: rotate(-6deg) scale(1.08); } }
@@ -441,18 +415,39 @@
   #logo-full.show { opacity: 1; }
   #logo-full img { height: 88%; object-fit: contain; filter: drop-shadow(0 0 30px rgba(255,255,255,0.25)); }
 
-  /* --- Panneaux de contrôle sur deux colonnes --- */
   #panels { order: 3; width: 100%; max-width: 1500px; margin-top: 16px; column-count: 2; column-gap: 16px; }
   #panels > * { order: 0 !important; width: 100% !important; max-width: none !important; margin: 0 0 16px 0 !important; break-inside: avoid; }
   #toolbar { max-width: 1500px; }
   @media (max-width: 1000px) { #panels { column-count: 1; } }
-  /* Zone logo gauche agrandie : 460 px */
   #logo-left { width: 460px; }
   #photo-zone { left: 460px !important; width: 1844px !important; }
-  #idle-text, #announce, #winner-layer { left: 460px; width: 1844px; }
+  #idle-text { left: 460px; width: 1844px; }
+#announce, #winner-layer { left: 0 !important; width: 100% !important; }
+#announce { background: rgba(8,0,24,0.985); z-index: 30; overflow: hidden; }
+#winner-layer { background: rgba(8,0,24,0.985); z-index: 31; }
+#logo-full { z-index: 30; background: rgba(0,0,0,0.985); }
+#announce-inner { display: flex; flex-direction: column; align-items: center; justify-content: center; width: 100%; }
+#announce.anim-calm.show #announce-inner { animation: ann-fade 0.6s ease-out; }
+#announce.anim-zoom.show #announce-inner { animation: ann-zoom 0.7s cubic-bezier(0.2, 1.3, 0.3, 1); }
+#announce.anim-neon.show #announce-inner { animation: ann-flicker 0.9s steps(1) 1; }
+#announce.anim-neon.show #announce-name { text-shadow: 0 0 12px #fff, 0 0 40px #ff2bd6, 0 0 90px #ff2bd6; }
+#announce.anim-scroll.show #announce-inner { width: max-content; white-space: nowrap; animation: ann-scroll 7.5s linear both; }
+#announce.anim-f1.show #announce-inner { animation: ann-f1-reveal 1s linear both; }
+#announce.anim-f1.show::before, #announce.anim-f1.show::after {
+content: ""; position: absolute; top: -10%; height: 120%; left: 0; transform: skewX(-20deg) translateX(-200%);
+animation: ann-f1-band 1s linear both; pointer-events: none;
+}
+#announce.anim-f1.show::before { width: 9%; background: #ffd60a; }
+#announce.anim-f1.show::after { width: 6%; background: #e10600; margin-left: -7%; animation-delay: 0.03s; }
+@keyframes ann-fade { from { opacity: 0; } to { opacity: 1; } }
+@keyframes ann-zoom { from { transform: scale(3.2); opacity: 0; filter: blur(14px); } to { transform: none; opacity: 1; filter: none; } }
+@keyframes ann-flicker { 0% { opacity: 0; } 12% { opacity: 1; } 22% { opacity: 0.15; } 34% { opacity: 1; } 46% { opacity: 0.3; } 60%, 100% { opacity: 1; } }
+@keyframes ann-scroll { from { transform: translateX(2700px); } to { transform: translateX(-2700px); } }
+@keyframes ann-f1-reveal { from { clip-path: polygon(0 0, 0 0, -5% 100%, 0 100%); } to { clip-path: polygon(0 0, 125% 0, 120% 100%, 0 100%); } }
+@keyframes ann-f1-band { from { transform: skewX(-20deg) translateX(-250%); } to { transform: skewX(-20deg) translateX(1500%); } }
+.cpanel select { background: #1b1b24; color: #eee; border: 1px solid #444; border-radius: 6px; padding: 6px 8px; font: inherit; }
   .cpanel input[type=color] { width: 40px; height: 34px; border: none; background: none; padding: 0; cursor: pointer; }
 
-  /* --- Effets de fond --- */
   #fx-layer { position: absolute; top: 0; left: 0; width: 100%; height: 100%; overflow: hidden; pointer-events: none; z-index: 0; }
   .fx { position: absolute; }
   .fx-star { width: 4px; height: 4px; border-radius: 50%; background: #fff; animation: fx-twinkle var(--d) ease-in-out var(--delay) infinite; }
@@ -508,8 +503,10 @@
   <div id="blackout-layer"></div>
   <div id="dim-layer"></div>
   <div id="announce">
-    <div id="announce-label"></div>
-    <div id="announce-row"><span id="announce-name"></span><span id="announce-price"></span></div>
+    <div id="announce-inner">
+      <div id="announce-label"></div>
+      <div id="announce-row"><span id="announce-name"></span><span id="announce-price"></span></div>
+    </div>
   </div>
   <div id="winner-layer">
     <div id="winner-title">Gagnant·e !</div>
@@ -520,7 +517,6 @@
   
   <div id="logo-left">
     <img id="logo-left-img" style="display:none;" />
-    <!-- le bouton de chargement du logo est dans le panneau de contrôle -->
   </div>
   <div id="photo-zone"></div>
   <div id="idle-text">
@@ -549,6 +545,17 @@
   <input type="text" id="promo-price" placeholder="Prix (ex : 1€)" maxlength="10" style="width:100px;">
   <button id="promo-add">Ajouter</button>
   <div class="line" id="promo-list"></div>
+  <div class="line">
+    <span>Animation :</span>
+    <select id="anim-style">
+      <option value="bounce">Rebond</option>
+      <option value="f1">Bandeau F1 (diagonale)</option>
+      <option value="scroll">Défilement sur tout l'écran</option>
+      <option value="zoom">Zoom</option>
+      <option value="neon">Néon clignotant</option>
+      <option value="random">Aléatoire</option>
+    </select>
+  </div>
   <div class="line">
     <button id="announce-hide">Retirer l'annonce</button>
     <button id="ticker-promos">Promos en défilement</button>
@@ -643,7 +650,6 @@ let activeSlots = [];
 let seenIds = new Set();
 let pollInterval = null;
 
-// --- Connexion ---
 document.getElementById("login-btn").addEventListener("click", () => {
   const u = document.getElementById("user-input").value;
   const p = document.getElementById("pass-input").value;
@@ -658,7 +664,6 @@ document.getElementById("login-btn").addEventListener("click", () => {
   }
 });
 
-// --- Mise à l'échelle de la scène 2688x384 dans la fenêtre du navigateur ---
 function fitStage() {
   const stage = document.getElementById("stage");
   const wrap = document.getElementById("stage-wrap");
@@ -669,9 +674,7 @@ function fitStage() {
 }
 window.addEventListener("resize", fitStage);
 
-// --- QR code vers la page invité ---
 function initQR(url) {
-  // QR recadré au pixel près
   const holder = document.createElement("div");
   holder.style.cssText = "position:absolute;left:-9999px;top:0;";
   document.body.appendChild(holder);
@@ -706,10 +709,8 @@ function initQR(url) {
   holder.remove();
 }
 
-// --- Logos ---
 function setupLogoUpload(inputId, imgId) {
   const img = document.getElementById(imgId);
-  // Restaure le logo enregistré dans ce navigateur (s'il existe)
   try {
     const saved = localStorage.getItem("logo-" + imgId);
     if (saved) { img.src = saved; img.style.display = "block"; }
@@ -731,7 +732,6 @@ document.getElementById("logo-btn").addEventListener("click", () => {
   document.getElementById("logo-left-input").click();
 });
 
-// --- Récupération des nouvelles photos depuis le serveur ---
 function startPolling() {
   pollInterval = setInterval(fetchNewPhotos, 3000);
   fetchNewPhotos();
@@ -765,12 +765,10 @@ async function fetchNewPhotos() {
   }
 }
 
-// --- Bouton blackout : fondu au noir en 1,5 seconde, puis fondu retour ---
 document.getElementById("blackout-btn").addEventListener("click", () => {
   document.getElementById("blackout-layer").classList.toggle("on");
 });
 
-// --- Bouton effet surprise : emojis animés aléatoires ---
 const EFFECT_SETS = [
   ["\u{1F525}","\u{1F525}","\u{1F525}","\u{1F525}","\u{1F525}","\u{1F525}"],
   ["\u{2B50}","\u{2728}","\u{1F31F}","\u{2B50}","\u{2728}","\u{1F31F}"],
@@ -794,7 +792,6 @@ document.getElementById("meme-btn").addEventListener("click", () => {
   }
 });
 
-// --- Bouton stroboscope : actif seulement tant qu'on appuie, bloc par bloc (14 panneaux de 192px) ---
 const strobeBtn = document.getElementById("strobe-btn");
 const strobeLayer = document.getElementById("strobe-layer");
 for (let i = 0; i < 14; i++) {
@@ -818,29 +815,33 @@ strobeBtn.addEventListener("mouseup", strobeOff);
 strobeBtn.addEventListener("mouseleave", strobeOff);
 strobeBtn.addEventListener("touchend", strobeOff);
 
-// --- Cacher / afficher le QR code (pour laisser place à un logo) ---
 document.getElementById("toggle-qr-btn").addEventListener("click", () => {
   const qr = document.getElementById("qr-code");
   const btn = document.getElementById("toggle-qr-btn");
   const hidden = qr.style.display === "none";
   qr.style.display = hidden ? "block" : "none";
   document.getElementById("qr-label").style.display = hidden ? "block" : "none";
+  // QR caché => le logo du club s'affiche à droite ; QR réaffiché => le logo disparaît
+  const left = document.getElementById("logo-left-img");
+  const right = document.getElementById("logo-right-img");
+  if (hidden || !left.src || left.style.display === "none") {
+    right.style.display = "none";
+  } else {
+    right.src = left.src;
+    right.style.display = "block";
+  }
   btn.textContent = hidden ? "Cacher QR code" : "Afficher QR code";
 });
 
-// --- Pause de l'affichage (la réception continue en arrière-plan) ---
 document.getElementById("pause-btn").addEventListener("click", () => {
   isPaused = !isPaused;
   document.getElementById("pause-btn").textContent = isPaused ? "Reprendre" : "Pause";
 });
 
-// --- Téléchargement de toutes les photos de la soirée ---
 document.getElementById("download-btn").addEventListener("click", () => {
-  // Ouvre la galerie du serveur : toutes les photos + un bouton "Tout télécharger" (ZIP)
   window.open(`${SERVER_URL}/gallery`, "_blank");
 });
 
-// --- Logique d'affichage adaptatif ---
 function currentDuration() {
   if (manualDuration) return BASE_DURATION;
   if (photoQueue.length >= QUEUE_THRESHOLD) return MIN_DURATION;
@@ -849,7 +850,6 @@ function currentDuration() {
   return Math.max(MIN_DURATION, BASE_DURATION - reduction);
 }
 
-// --- Curseur manuel de durée d'affichage ---
 const durationSlider = document.getElementById("duration-slider");
 durationSlider.addEventListener("input", () => {
   manualDuration = true;
@@ -866,9 +866,7 @@ function processQueue() {
   }
 }
 
-// emplacements : voir SLOT_LAYOUT
 
-// 5 emplacements répartis sur toute la zone photos (1920 px)
 const SLOT_LAYOUT = [
   { left: 24,   top: 55, rot: -6 },
   { left: 411,  top: 25, rot: 4 },
@@ -877,7 +875,6 @@ const SLOT_LAYOUT = [
   { left: 1572, top: 65, rot: -5 }
 ];
 
-// Emplacement libre au hasard
 function pickFreeSlot() {
   const used = new Set(activeSlots.map(s => s.index));
   const free = SLOT_LAYOUT.map((p, i) => i).filter(i => !used.has(i));
@@ -890,7 +887,6 @@ function showPhoto(photo) {
   el.className = "polaroid entering";
   const index = pickFreeSlot();
   const base = SLOT_LAYOUT[index];
-  // variation aléatoire
   const pos = {
     left: base.left + (Math.random() * 30 - 15),
     top: base.top + (Math.random() * 30 - 15),
@@ -929,7 +925,6 @@ function removePhoto(slot) {
   }, 600);
 }
 
-// --- Animation d'attente : texte qui tourne en boucle tant qu'aucune photo n'est affichée ---
 const IDLE_MESSAGES = [
   { main: "Photobooth", sub: "Scanne le QR code" },
   { main: "Smile !", sub: "Ta photo sur le grand écran" },
@@ -952,13 +947,12 @@ function idleCycle() {
   const el = document.getElementById("idle-text");
   const mainEl = document.getElementById("idle-main");
   const subEl = document.getElementById("idle-sub");
-  if (!isIdle()) {
+  if (!isIdle() || annActive()) {
     el.classList.remove("show");
     scheduleIdle(1000);
     return;
   }
   if (customText) {
-    // Message personnalisé : fixe, remplace l'animation tant qu'il est actif
     if (mainEl.textContent !== customText || !el.classList.contains("show")) {
       mainEl.textContent = customText;
       mainEl.style.fontSize = customFontSize(customText);
@@ -986,7 +980,6 @@ function idleCycle() {
 }
 scheduleIdle(1000);
 
-// --- Panneau "Message à l'écran" ---
 document.getElementById("text-show-btn").addEventListener("click", () => {
   const v = document.getElementById("text-input").value.trim();
   if (!v) return;
@@ -1006,7 +999,6 @@ document.getElementById("text-input").addEventListener("keydown", (e) => {
   if (e.key === "Enter") document.getElementById("text-show-btn").click();
 });
 
-// --- Compteurs : photos diffusées / en attente / téléphones connectés ---
 let shownCount = 0;
 function updateCounters() {
   document.getElementById("queue-count").textContent = photoQueue.filter(p => !p.test && !p.replay).length;
@@ -1022,7 +1014,6 @@ async function updateGuests() {
   } catch (e) {}
 }
 
-// ===== Fonctions avancées : promos, ambiance, diffusion, affichages spéciaux =====
 const $ = (id) => document.getElementById(id);
 function lsGet(k, d) { try { const v = localStorage.getItem(k); return v ? JSON.parse(v) : d; } catch (e) { return d; } }
 function lsSet(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) {} }
@@ -1032,14 +1023,28 @@ function setToggle(id, on, label) {
   b.textContent = label + " : " + (on ? "ON" : "OFF");
 }
 
-// --- Annonces (promos, compte à rebours, horloge) : une seule à la fois ---
 let announceTimer = null;
 let countdownTimer = null;
 let clockTimer = null;
 let clockOn = false;
 
-function renderAnnounce(name, price, label, size) {
+let annStyle = lsGet("annStyle", "bounce");
+const ANN_STYLES = ["bounce", "f1", "scroll", "zoom", "neon"];
+function setAnnStyle(v) {
+  if (v !== "random" && !ANN_STYLES.includes(v)) return;
+  annStyle = v;
+  lsSet("annStyle", v);
+  const sel = $("anim-style");
+  if (sel) sel.value = v;
+}
+function annActive() {
+  return $("announce").classList.contains("show") || $("logo-full").classList.contains("show") || $("winner-layer").classList.contains("show");
+}
+function renderAnnounce(name, price, label, size, style) {
   const el = $("announce");
+  let st = style || annStyle;
+  if (st === "random") st = ANN_STYLES[Math.floor(Math.random() * ANN_STYLES.length)];
+  el.className = "anim-" + st;
   const nameEl = $("announce-name");
   const priceEl = $("announce-price");
   const labelEl = $("announce-label");
@@ -1080,7 +1085,7 @@ function startCountdown(seconds, label) {
   stopLive();
   clearTimeout(announceTimer);
   const end = Date.now() + seconds * 1000;
-  renderAnnounce(fmtTime(seconds), "", label, "200px");
+  renderAnnounce(fmtTime(seconds), "", label, "200px", "calm");
   countdownTimer = setInterval(() => {
     const left = Math.ceil((end - Date.now()) / 1000);
     if (left <= 0) {
@@ -1103,12 +1108,11 @@ function toggleClock() {
   const tick = () => {
     $("announce-name").textContent = new Date().toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" });
   };
-  renderAnnounce("--:--", "", "", "220px");
+  renderAnnounce("--:--", "", "", "220px", "calm");
   tick();
   clockTimer = setInterval(tick, 1000);
 }
 
-// --- Promos personnalisables (nom + prix), enregistrées dans ce navigateur ---
 const ANNOUNCE_MS = 8000;
 let promos = lsGet("promos", [
   { name: "Shot", price: "1€" },
@@ -1147,9 +1151,10 @@ $("promo-add").addEventListener("click", () => {
   renderPromos();
 });
 $("announce-hide").addEventListener("click", hideAnnounce);
+$("anim-style").value = annStyle;
+$("anim-style").addEventListener("change", () => setAnnStyle($("anim-style").value));
 renderPromos();
 
-// --- Texte défilant ---
 let tickerOn = false;
 function startTicker(text) {
   const t = $("ticker"), s = $("ticker-span");
@@ -1172,7 +1177,6 @@ $("ticker-stop").addEventListener("click", stopTicker);
 $("ticker-stop-promo").addEventListener("click", stopTicker);
 $("ticker-promos").addEventListener("click", startTickerPromos);
 
-// --- Ambiance : thèmes de fond, vitesse, luminosité ---
 const THEMES = {
   "Miami": "linear-gradient(135deg, #2d0a4e 0%, #7b2d8e 25%, #e0457b 50%, #ff7a5c 75%, #2fae6e 100%)",
   "Néon bleu": "linear-gradient(135deg, #020024 0%, #0b2a8f 30%, #00a3ff 55%, #00f0ff 80%, #7a00ff 100%)",
@@ -1191,7 +1195,6 @@ const THEMES = {
 };
 let currentTheme = "Miami";
 let brightness = 100;
-// Fond du bandeau : thème, couleur unie, dégradé perso ou image
 let currentBg = null;
 function applyBg(bg) {
   const st = $("stage");
@@ -1225,7 +1228,6 @@ $("bg-image-input").addEventListener("change", (e) => {
   reader.onload = () => {
     const img = new Image();
     img.onload = () => {
-      // On réduit l'image pour qu'elle reste légère (idéal : format très large, 7 pour 1)
       const scale = Math.min(1, 1600 / img.width);
       const c = document.createElement("canvas");
       c.width = Math.round(img.width * scale);
@@ -1239,7 +1241,6 @@ $("bg-image-input").addEventListener("change", (e) => {
   e.target.value = "";
 });
 
-// Effets animés par-dessus le fond (derrière les photos)
 const FX_LIST = ["Aucun", "Étoiles", "Bulles", "Confettis", "Neige"];
 let currentFx = "Aucun";
 function setFx(name) {
@@ -1296,7 +1297,6 @@ applyBg(lsGet("bg", { type: "theme", value: "Miami" }));
 setFx(lsGet("fx", "Aucun"));
 setSpeed(lsGet("speed", 20));
 
-// --- Diffusion : rediffusion, validation manuelle, célébrations ---
 let replayOn = false;
 let approvalMode = false;
 let celebrateOn = false;
@@ -1321,7 +1321,6 @@ function checkCelebrate() {
   }
 }
 
-// Rediffusion : si peu de photos arrivent, le mur repasse d'anciennes photos au hasard
 setInterval(() => {
   if (!replayOn || isPaused || testMode) return;
   if (photoQueue.length > 0 || activeSlots.length >= MAX_SLOTS) return;
@@ -1338,7 +1337,6 @@ $("remove-last-btn").addEventListener("click", () => {
   if (s) removePhoto(s);
 });
 
-// Validation manuelle : les photos attendent ici jusqu'à validation
 function approvePhoto(id) {
   const i = pendingApproval.findIndex(p => p.id === id);
   if (i < 0) return;
@@ -1394,7 +1392,6 @@ function renderPending(force) {
 }
 setInterval(renderPending, 700);
 
-// --- Tirage au sort : une photo gagnante affichée en grand ---
 let winnerSpin = null;
 let winnerTimer = null;
 function drawWinner(silent) {
@@ -1426,7 +1423,6 @@ function drawWinner(silent) {
 }
 $("winner-btn").addEventListener("click", () => drawWinner(false));
 
-// --- Logo plein écran ---
 let logoFullOn = false;
 function toggleLogoFull() {
   const img = $("logo-left-img");
@@ -1439,7 +1435,6 @@ function toggleLogoFull() {
 $("logo-full-btn").addEventListener("click", toggleLogoFull);
 $("clock-btn").addEventListener("click", toggleClock);
 
-// --- Compte à rebours ---
 $("cd-start").addEventListener("click", () => startCountdown((parseFloat($("cd-min").value) || 1) * 60, $("cd-label").value.trim()));
 $("cd-midnight").addEventListener("click", () => {
   const now = new Date();
@@ -1449,7 +1444,6 @@ $("cd-midnight").addEventListener("click", () => {
 });
 $("cd-stop").addEventListener("click", stopCountdown);
 
-// --- QR n°2 (ex : Instagram du club), alterné avec le QR du photobooth ---
 let qr2On = false;
 let qr2Showing = false;
 let qr2Timer = null;
@@ -1481,7 +1475,6 @@ $("qr2-btn").addEventListener("click", () => {
   }
 });
 
-// --- Modération ON / OFF (texte filtré + visage obligatoire côté invités) ---
 let moderationOn = true;
 function renderModeration() {
   const b = document.getElementById("moderation-btn");
@@ -1497,14 +1490,12 @@ document.getElementById("moderation-btn").addEventListener("click", async () => 
   } catch (e) {}
 });
 
-// --- Télécommande : exécute les ordres envoyés depuis le téléphone (remote.html) ---
 let lastCmdId = null;
 let strobeSafety = null;
 async function pollCommands() {
   try {
     const res = await fetch(`${SERVER_URL}/api/commands?after=${lastCmdId || 0}&p=${encodeURIComponent(ADMIN_PASS)}`);
     const data = await res.json();
-    // Premier passage (ou serveur redémarré) : on ignore les anciens ordres
     if (lastCmdId === null || data.last < lastCmdId) { lastCmdId = data.last; return; }
     data.commands.forEach(runRemoteCommand);
     lastCmdId = data.last;
@@ -1536,6 +1527,7 @@ function runRemoteCommand(c) {
     case "text_clear": click("text-clear-btn"); break;
     case "promo": showPromo(c.value); break;
     case "announce_hide": hideAnnounce(); break;
+    case "ann_style": setAnnStyle(c.text); break;
     case "theme": setTheme(c.text); break;
     case "speed": setSpeed(c.value); break;
     case "brightness": setBrightness(c.value); break;
@@ -1607,6 +1599,7 @@ async function pushState() {
     test: testMode,
     text: customText,
     promos: promos,
+    annStyle: annStyle,
     themes: Object.keys(THEMES),
     theme: currentTheme,
     fxs: FX_LIST,
@@ -1630,12 +1623,10 @@ async function pushState() {
     await fetch(`${SERVER_URL}/api/state?p=${encodeURIComponent(ADMIN_PASS)}`, { method: "POST", body: JSON.stringify(state) });
   } catch (e) {}
 }
-// Dès qu'une photo arrive, le texte disparaît immédiatement
 setInterval(() => {
-  if (!isIdle()) document.getElementById("idle-text").classList.remove("show");
+  if (!isIdle() || annActive()) document.getElementById("idle-text").classList.remove("show");
 }, 300);
 
-// --- Bouton Mode test : simule l'arrivée de photos (images de couleur) pour régler la mise en page ---
 const TEST_COLORS = [
   { name: "Noir", color: "#000000" },
   { name: "Blanc", color: "#ffffff" },
@@ -1672,7 +1663,6 @@ document.getElementById("test-btn").addEventListener("click", () => {
   }
 });
 
-// --- Bouton Purger : supprime définitivement toutes les photos du serveur ---
 async function purgeAll(silent) {
   try {
     const res = await fetch(`${SERVER_URL}/api/photos`, {
@@ -1695,7 +1685,6 @@ document.getElementById("purge-btn").addEventListener("click", () => {
   if (confirm("Supprimer définitivement TOUTES les photos du serveur ?")) purgeAll(false);
 });
 
-// --- Bouton Mélanger / Effacer : envole toutes les photos actuelles ---
 document.getElementById("clear-btn").addEventListener("click", () => {
   activeSlots.forEach((slot, i) => {
     setTimeout(() => {
