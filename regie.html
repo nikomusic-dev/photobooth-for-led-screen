@@ -187,6 +187,11 @@
       </div>
     </div>
 
+    <div class="panel" id="suspend-panel" style="display:none;">
+      <h3>Téléphones suspendus</h3>
+      <div id="suspend-list"></div>
+    </div>
+
     <div class="panel">
       <h3>Participation du public</h3>
       <div class="row">
@@ -587,6 +592,39 @@ document.getElementById("b-live-stop").addEventListener("click", async () => {
     toast("Direct coupé");
   } catch (e) { toast("Erreur d'envoi"); }
 });
+
+// Téléphones suspendus (textes bloqués répétés) : liste + déblocage manuel
+async function pollSuspended() {
+  try {
+    const res = await fetch(`${SERVER_URL}/api/suspended?p=${encodeURIComponent(ADMIN_PASS)}`);
+    const data = await res.json();
+    renderSuspended(data.suspended || []);
+  } catch (e) {}
+}
+function renderSuspended(list) {
+  const panel = document.getElementById("suspend-panel");
+  const box = document.getElementById("suspend-list");
+  panel.style.display = list.length ? "block" : "none";
+  box.innerHTML = "";
+  list.forEach(s => {
+    const left = Math.max(0, Math.ceil((s.until - Date.now()) / 1000));
+    const m = Math.floor(left / 60), sec = left % 60;
+    const row = mk("div", "pcard");
+    const label = mk("div", "cap", `Tél. ...${s.guestId.slice(-5)} (${m}:${String(sec).padStart(2,"0")})`);
+    const unblock = mk("button", "btn", "Débloquer");
+    unblock.addEventListener("click", async () => {
+      try {
+        await fetch(`${SERVER_URL}/api/unsuspend?id=${encodeURIComponent(s.guestId)}&p=${encodeURIComponent(ADMIN_PASS)}`, { method: "POST" });
+        toast("Téléphone débloqué");
+        pollSuspended();
+      } catch (e) {}
+    });
+    row.append(label, unblock);
+    box.appendChild(row);
+  });
+}
+setInterval(pollSuspended, 5000);
+pollSuspended();
 </script>
 </body>
 </html>
