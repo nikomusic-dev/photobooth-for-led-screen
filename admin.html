@@ -78,8 +78,6 @@
   }
   #photo-zone {
     position: absolute;
-    left: 384px;
-    width: 1920px;
     height: 384px;
     top: 0;
   }
@@ -189,7 +187,7 @@
     font-size: 13px;
     color: #ccc;
   }
-  #toolbar button, #text-panel button {
+  #toolbar button, .cpanel button {
     background: linear-gradient(180deg, #4a4a4d 0%, #2f2f31 100%);
     color: #e8e8e8;
     border: 1px solid #111;
@@ -203,8 +201,8 @@
     text-transform: uppercase;
     box-shadow: 0 2px 3px rgba(0,0,0,0.5);
   }
-  #toolbar button:hover, #text-panel button:hover { background: linear-gradient(180deg, #58585b 0%, #38383a 100%); }
-  #toolbar button:active, #text-panel button:active { box-shadow: inset 0 2px 4px rgba(0,0,0,0.6); transform: translateY(1px); }
+  #toolbar button:hover, .cpanel button:hover { background: linear-gradient(180deg, #58585b 0%, #38383a 100%); }
+  #toolbar button:active, .cpanel button:active { box-shadow: inset 0 2px 4px rgba(0,0,0,0.6); transform: translateY(1px); }
   #duration-control, #photo-counter, #shown-counter, #queue-counter, #guest-counter {
     display: flex;
     align-items: center;
@@ -224,8 +222,7 @@
   #qr-code img { width: 100% !important; height: 100% !important; }
   #idle-text {
     position: absolute;
-    left: 384px; top: 0;
-    width: 1920px; height: 384px;
+    top: 0; height: 384px;
     display: flex; flex-direction: column;
     align-items: center; justify-content: center;
     text-align: center;
@@ -277,38 +274,6 @@
   }
   #stage-wrap { position: relative; margin: 0 auto; order: 1; }
   #toolbar { order: 2; }
-  #text-panel {
-    order: 3;
-    width: 100%;
-    max-width: 950px;
-    margin-top: 16px;
-    background: linear-gradient(180deg, #2b2b2e 0%, #1c1c1e 100%);
-    display: flex;
-    flex-wrap: wrap;
-    align-items: center;
-    justify-content: center;
-    gap: 12px;
-    padding: 16px 18px;
-    border-radius: 8px;
-    border: 1px solid #0a0a0a;
-    box-shadow: inset 0 1px 0 rgba(255,255,255,0.08), 0 6px 16px rgba(0,0,0,0.5);
-    font-family: 'Segoe UI', sans-serif;
-    font-size: 11px;
-    letter-spacing: 0.4px;
-    text-transform: uppercase;
-    color: #999;
-  }
-  #text-panel input {
-    flex: 1;
-    min-width: 220px;
-    background: #19191b;
-    color: #fff;
-    border: 1px solid #0a0a0a;
-    border-radius: 5px;
-    padding: 12px 14px;
-    font-size: 14px;
-    box-shadow: inset 0 1px 3px rgba(0,0,0,0.6);
-  }
   .polaroid.shuffling {
     transition: transform 0.5s ease, opacity 0.5s ease;
     opacity: 0;
@@ -341,15 +306,7 @@
     box-shadow: inset 0 1px 3px rgba(0,0,0,0.6);
   }
   .cpanel input[type=range] { accent-color: #ff4d8d; }
-  .cpanel button {
-    background: linear-gradient(180deg, #4a4a4d 0%, #2f2f31 100%);
-    color: #e8e8e8; border: 1px solid #111; border-top: 1px solid #5c5c5f;
-    border-radius: 5px; padding: 10px 14px; cursor: pointer;
-    font-size: 11px; font-weight: 600; letter-spacing: 0.4px; text-transform: uppercase;
-    box-shadow: 0 2px 3px rgba(0,0,0,0.5);
-  }
-  .cpanel button:hover { background: linear-gradient(180deg, #58585b 0%, #38383a 100%); }
-  .cpanel button:active { transform: translateY(1px); }
+  .cpanel button { padding: 10px 14px; font-size: 11px; }
   .cpanel button.on { background: linear-gradient(180deg, #ff4d8d 0%, #c2316a 100%); color: #fff; }
   .cpanel .line { width: 100%; display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
   .chip { display: inline-flex; }
@@ -420,6 +377,7 @@
   #toolbar { max-width: 1500px; }
   @media (max-width: 1000px) { #panels { column-count: 1; } }
   #logo-left { width: 460px; }
+  #logo-right img { max-width: 432px; }
   #photo-zone { left: 460px !important; width: 1844px !important; }
   #idle-text { left: 460px; width: 1844px; }
 #announce, #winner-layer { left: 0 !important; width: 100% !important; }
@@ -458,6 +416,11 @@ animation: ann-f1-band 1s linear both; pointer-events: none;
   @keyframes fx-fall { from { transform: translateY(0) rotate(0deg); } to { transform: translateY(460px) rotate(540deg); } }
   .fx-snow { top: -20px; width: 8px; height: 8px; border-radius: 50%; background: #fff; opacity: 0.85; animation: fx-snow-fall var(--d) linear var(--delay) infinite; }
   @keyframes fx-snow-fall { from { transform: translate(0, 0); } 50% { transform: translate(30px, 230px); } to { transform: translate(-10px, 460px); } }
+.fx-blood { top: -30px; width: 6px; height: 28px; border-radius: 50% 50% 50% 50% / 25% 25% 75% 75%; background: linear-gradient(#b00000, #5a0000); animation: fx-drip var(--d) ease-in var(--delay) infinite; }
+@keyframes fx-drip { from { transform: translateY(0); } to { transform: translateY(460px); } }
+.fx-spore { bottom: -40px; width: 24px; height: 24px; border-radius: 50%; background: radial-gradient(#b6ff3a, rgba(60,255,0,0) 70%); animation: fx-rise var(--d) linear var(--delay) infinite; }
+.fx-bat { font-size: 44px; animation: fx-bat var(--d) linear var(--delay) infinite; }
+@keyframes fx-bat { from { transform: translate(-100px, 0); } 50% { transform: translate(1400px, -60px); } to { transform: translate(2800px, 20px); } }
 </style>
 </head>
 <body>
@@ -492,7 +455,7 @@ animation: ann-f1-band 1s linear both; pointer-events: none;
   <div id="shown-counter">Diffusées : <b id="shown-count">0</b></div>
   <div id="queue-counter">En attente : <b id="queue-count">0</b></div>
   <div id="guest-counter">Téléphones connectés : <b id="guest-count">0</b></div>
-  <span style="font-size:11px; color:#777; align-self:center;">v12</span>
+  <span style="font-size:11px; color:#777; align-self:center;">v13</span>
 </div>
 <div id="stage-wrap">
 <div id="stage">
@@ -532,9 +495,9 @@ animation: ann-f1-band 1s linear both; pointer-events: none;
 </div>
 
 <div id="panels">
-<div id="text-panel">
+<div class="cpanel" id="text-panel">
   <span>Message à l'écran :</span>
-  <input id="text-input" maxlength="40" placeholder="Ex : Bienvenue au Portland Pub !" />
+  <input type="text" style="flex:1;min-width:220px" id="text-input" maxlength="40" placeholder="Ex : Bienvenue au Portland Pub !" />
   <button id="text-show-btn">Afficher</button>
   <button id="text-clear-btn">Retirer</button>
 </div>
@@ -687,10 +650,10 @@ function initQR(url) {
     for (let x = 0; x < w; x++) {
       const i = (y * w + x) * 4;
       if (px[i + 3] > 0 && px[i] < 128) {
-        if (x < minX) minX = x;
-        if (x > maxX) maxX = x;
-        if (y < minY) minY = y;
-        if (y > maxY) maxY = y;
+if (x < minX) minX = x;
+if (x > maxX) maxX = x;
+if (y < minY) minY = y;
+if (y > maxY) maxY = y;
       }
     }
   }
@@ -750,11 +713,11 @@ async function fetchNewPhotos() {
     const photos = await res.json();
     photos.forEach(p => {
       if (!seenIds.has(p.id)) {
-        seenIds.add(p.id);
-        allPhotos.push(p);
-        checkCelebrate();
-        if (approvalMode) pendingApproval.push(p);
-        else if (!isPaused) photoQueue.push(p);
+seenIds.add(p.id);
+allPhotos.push(p);
+checkCelebrate();
+if (approvalMode) pendingApproval.push(p);
+else if (!isPaused) photoQueue.push(p);
       }
     });
     document.getElementById("photo-count").textContent = allPhotos.length;
@@ -770,11 +733,11 @@ document.getElementById("blackout-btn").addEventListener("click", () => {
 });
 
 const EFFECT_SETS = [
-  ["\u{1F525}","\u{1F525}","\u{1F525}","\u{1F525}","\u{1F525}","\u{1F525}"],
-  ["\u{2B50}","\u{2728}","\u{1F31F}","\u{2B50}","\u{2728}","\u{1F31F}"],
-  ["\u{1F600}","\u{1F973}","\u{1F60E}","\u{1F92A}","\u{1F600}","\u{1F973}"],
-  ["\u{1F389}","\u{1F38A}","\u{1F389}","\u{1F38A}","\u{1F389}","\u{1F38A}"],
-  ["\u{1F4A5}","\u{26A1}","\u{1F4A5}","\u{26A1}","\u{1F4A5}","\u{26A1}"]
+  ["\u{1F525}"],
+  ["\u{2B50}","\u{2728}","\u{1F31F}"],
+  ["\u{1F600}","\u{1F973}","\u{1F60E}","\u{1F92A}"],
+  ["\u{1F389}","\u{1F38A}"],
+  ["\u{1F4A5}","\u{26A1}"]
 ];
 document.getElementById("meme-btn").addEventListener("click", () => {
   const layer = document.getElementById("effect-layer");
@@ -1191,7 +1154,13 @@ const THEMES = {
   "Or": "linear-gradient(135deg, #1a1200 0%, #7a5c00 30%, #ffd700 60%, #fff2a8 80%, #7a5c00 100%)",
   "Glace": "linear-gradient(135deg, #0b132b 0%, #1c2541 30%, #5bc0be 65%, #e0fbfc 100%)",
   "Arc-en-ciel": "linear-gradient(135deg, #ff0000 0%, #ff9900 17%, #ffee00 34%, #22cc44 50%, #0088ff 67%, #8844ff 84%, #ff0066 100%)",
-  "Noir": "linear-gradient(135deg, #000000 0%, #111111 50%, #000000 100%)"
+  "Noir": "linear-gradient(135deg, #000000 0%, #111111 50%, #000000 100%)",
+  "Virus": "linear-gradient(135deg, #010a01 0%, #0a3d0a 35%, #2fd10a 65%, #0a3d0a 85%, #010a01 100%)",
+  "Sang": "linear-gradient(135deg, #0a0000 0%, #4a0000 35%, #b00000 65%, #1a0000 100%)",
+  "Umbrella": "linear-gradient(135deg, #000 0%, #7a0000 40%, #e10600 60%, #f5f5f5 70%, #000 100%)",
+  "Zombie": "linear-gradient(135deg, #0b0f08 0%, #2b3a1f 40%, #6b7d3a 65%, #141a0e 100%)",
+  "Halloween": "linear-gradient(135deg, #0a0010 0%, #3b0a5c 35%, #ff6a00 70%, #1a0010 100%)",
+  "Morgue": "linear-gradient(135deg, #05080c 0%, #16222e 40%, #3f5a6b 70%, #0a1118 100%)"
 };
 let currentTheme = "Miami";
 let brightness = 100;
@@ -1241,7 +1210,7 @@ $("bg-image-input").addEventListener("change", (e) => {
   e.target.value = "";
 });
 
-const FX_LIST = ["Aucun", "Étoiles", "Bulles", "Confettis", "Neige"];
+const FX_LIST = ["Aucun", "Étoiles", "Bulles", "Confettis", "Neige", "Sang", "Spores", "Chauves-souris"];
 let currentFx = "Aucun";
 function setFx(name) {
   if (!FX_LIST.includes(name)) return;
@@ -1251,7 +1220,7 @@ function setFx(name) {
   layer.innerHTML = "";
   document.querySelectorAll("#fx-list button").forEach(b => b.classList.toggle("on", b.textContent === name));
   if (name === "Aucun") return;
-  const cfg = { "Étoiles": ["fx-star", 140], "Bulles": ["fx-bubble", 30], "Confettis": ["fx-confetti", 60], "Neige": ["fx-snow", 80] }[name];
+  const cfg = { "Étoiles": ["fx-star", 140], "Bulles": ["fx-bubble", 30], "Confettis": ["fx-confetti", 60], "Neige": ["fx-snow", 80], "Sang": ["fx-blood", 40], "Spores": ["fx-spore", 40], "Chauves-souris": ["fx-bat", 7] }[name];
   const colors = ["#ff4d8d", "#ffd60a", "#34c759", "#0a84ff", "#ff9500", "#bf5af2"];
   for (let i = 0; i < cfg[1]; i++) {
     const s = document.createElement("span");
@@ -1260,8 +1229,9 @@ function setFx(name) {
     s.style.setProperty("--d", (cfg[0] === "fx-star" ? 1.5 + Math.random() * 3 : 4 + Math.random() * 6) + "s");
     s.style.setProperty("--delay", (-Math.random() * 8) + "s");
     if (cfg[0] === "fx-star") s.style.top = Math.random() * 100 + "%";
-    if (cfg[0] === "fx-bubble") { const sz = 14 + Math.random() * 34; s.style.width = sz + "px"; s.style.height = sz + "px"; }
+    if (cfg[0] === "fx-bubble" || cfg[0] === "fx-spore") { const sz = 14 + Math.random() * 34; s.style.width = sz + "px"; s.style.height = sz + "px"; }
     if (cfg[0] === "fx-confetti") s.style.background = colors[i % colors.length];
+    if (cfg[0] === "fx-bat") { s.textContent = "\u{1F987}"; s.style.left = "0"; s.style.top = Math.random() * 70 + "%"; }
     layer.appendChild(s);
   }
 }
@@ -1556,9 +1526,9 @@ function runRemoteCommand(c) {
     case "promo_add": {
       const [name, price] = c.text.split("|");
       if (name && name.trim()) {
-        promos.push({ name: name.trim().slice(0, 24), price: (price || "").trim().slice(0, 10) });
-        lsSet("promos", promos);
-        renderPromos();
+promos.push({ name: name.trim().slice(0, 24), price: (price || "").trim().slice(0, 10) });
+lsSet("promos", promos);
+renderPromos();
       }
       break;
     }
