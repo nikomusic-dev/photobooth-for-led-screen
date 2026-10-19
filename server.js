@@ -3,29 +3,46 @@ const multer = require("multer");
 const cors = require("cors");
 const path = require("path");
 const fs = require("fs");
+const cloudinary = require("cloudinary").v2;
 const archiver = require("archiver");
 
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-// Dossier de stockage des photos
-const UPLOAD_DIR = path.join(__dirname, "uploads");
-if (!fs.existsSync(UPLOAD_DIR)) fs.mkdirSync(UPLOAD_DIR);
+// Configuration Cloudinary (stockage externe des photos, identifiants dans les variables d'environnement Render)
+cloudinary.config({
+  cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
+  api_key: process.env.CLOUDINARY_API_KEY,
+  api_secret: process.env.CLOUDINARY_API_SECRET
+});
+
+// Dossier Cloudinary de la soirée en cours (un dossier par date, ex: photobooth/2026-10-19)
+function currentEventFolder() {
+  // Une "soirée" va de midi à midi le lendemain, pour qu'une soirée commençant vers 22h
+  // et finissant vers 5-6h du matin reste dans un seul et même dossier.
+  const d = new Date();
+  if (d.getHours() < 12) d.setDate(d.getDate() - 1);
+  const pad = (n) => String(n).padStart(2, "0");
+  return `photobooth/${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+}
 
 app.use(cors());
-app.use("/uploads", express.static(UPLOAD_DIR));
 
-const storage = multer.diskStorage({
-  destination: (req, file, cb) => cb(null, UPLOAD_DIR),
-  filename: (req, file, cb) => {
-    const unique = Date.now() + "-" + Math.round(Math.random() * 1e9);
-    cb(null, unique + ".jpg");
-  }
-});
+// Upload en mémoire : le fichier ne touche plus le disque local, il part directement vers Cloudinary
 const upload = multer({
-  storage,
+  storage: multer.memoryStorage(),
   limits: { fileSize: 8 * 1024 * 1024 } // 8 Mo max par photo
 });
+
+function uploadToCloudinary(buffer, folder) {
+  return new Promise((resolve, reject) => {
+    const stream = cloudinary.uploader.upload_stream(
+      { folder, resource_type: "image", format: "jpg" },
+      (err, result) => (err ? reject(err) : resolve(result))
+    );
+    stream.end(buffer);
+  });
+}
 
 // Mémoire simple en RAM pour la liste des photos (suffisant pour un usage ponctuel en soirée)
 let photos = [];
@@ -65,17 +82,22 @@ function isCaptionAllowed(caption) {
 }
 
 // Réception d'une nouvelle photo depuis le téléphone
-app.post("/api/photos", upload.single("photo"), (req, res) => {
+app.post("/api/photos", upload.single("photo"), async (req, res) => {
   if (!req.file) return res.status(400).json({ error: "Aucune photo reçue" });
 
   const caption = (req.body.caption || "").slice(0, 20);
   if (moderationEnabled && !isCaptionAllowed(caption)) {
-    try { fs.unlinkSync(req.file.path); } catch (e) {}
     return res.status(422).json({ error: "caption_blocked" });
   }
+  let uploaded;
+  try {
+    uploaded = await uploadToCloudinary(req.file.buffer, currentEventFolder());
+  } catch (e) {
+    return res.status(502).json({ error: "upload_cloudinary_echoue" });
+  }
   const photo = {
-    id: req.file.filename,
-    url: `${req.protocol}://${req.get("host")}/uploads/${req.file.filename}`,
+    id: uploaded.public_id,
+    url: uploaded.secure_url,
     caption,
     createdAt: Date.now()
   };
@@ -93,16 +115,16 @@ app.get("/api/photos", (req, res) => {
   res.json(recent);
 });
 
-// Suppression de toutes les photos (bouton "Purger" de la page admin)
-app.delete("/api/photos", (req, res) => {
+// Suppression de toutes les photos (bouton "Purger" de la page admin) : supprime le dossier Cloudinary de la soirée en cours
+app.delete("/api/photos", async (req, res) => {
   const adminPass = process.env.ADMIN_PASS;
   if (adminPass && req.get("x-admin-pass") !== adminPass) {
     return res.status(401).json({ error: "Non autorisé" });
   }
   photos = [];
-  fs.readdirSync(UPLOAD_DIR).forEach(file => {
-    try { fs.unlinkSync(path.join(UPLOAD_DIR, file)); } catch (e) {}
-  });
+  try {
+    await cloudinary.api.delete_resources_by_prefix(currentEventFolder());
+  } catch (e) {}
   res.json({ success: true });
 });
 
@@ -124,13 +146,18 @@ app.get("/api/guests", (req, res) => {
 });
 
 // --- Galerie : toutes les photos du dossier + un bouton "Tout télécharger" (ZIP) ---
-function listPhotoFiles() {
-  return fs.readdirSync(UPLOAD_DIR).filter(f => f.endsWith(".jpg")).sort();
+async function listEventPhotos() {
+  const result = await cloudinary.search
+    .expression(`folder:${currentEventFolder()}`)
+    .sort_by("created_at", "asc")
+    .max_results(500)
+    .execute();
+  return result.resources || [];
 }
 
-app.get("/gallery", (req, res) => {
-  const files = listPhotoFiles();
-  const thumbs = files.map(f => `<a href="/uploads/${f}" target="_blank"><img src="/uploads/${f}" loading="lazy"></a>`).join("");
+app.get("/gallery", async (req, res) => {
+  const files = await listEventPhotos();
+  const thumbs = files.map(f => `<a href="${f.secure_url}" target="_blank"><img src="${f.secure_url}" loading="lazy"></a>`).join("");
   res.send(`<!DOCTYPE html>
 <html lang="fr"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Photos de la soirée</title>
@@ -149,13 +176,17 @@ ${files.length ? '<a class="dl" href="/api/photos.zip">Tout télécharger (ZIP)<
 </body></html>`);
 });
 
-app.get("/api/photos.zip", (req, res) => {
-  const files = listPhotoFiles();
+app.get("/api/photos.zip", async (req, res) => {
+  const files = await listEventPhotos();
   res.attachment("photos-soiree.zip");
   const archive = archiver("zip", { zlib: { level: 0 } });
   archive.on("error", () => res.end());
   archive.pipe(res);
-  files.forEach(f => archive.file(path.join(UPLOAD_DIR, f), { name: f }));
+  for (const f of files) {
+    const resp = await fetch(f.secure_url);
+    const buf = Buffer.from(await resp.arrayBuffer());
+    archive.append(buf, { name: f.public_id.split("/").pop() + ".jpg" });
+  }
   archive.finalize();
 });
 
@@ -193,18 +224,63 @@ app.post("/api/state", express.text({ type: "*/*", limit: "50kb" }), (req, res) 
   res.json({ ok: true });
 });
 
+// Qui est connecté ? Les pages télécommande et régie envoient un identifiant à chaque lecture de l'état.
+const remotesSeen = new Map(); // "remote:abc123" ou "regie:abc123" -> dernière fois vue
 app.get("/api/state", (req, res) => {
   if (!isAdmin(req)) return res.status(401).json({ error: "Non autorisé" });
+  const rid = String(req.query.r || "").slice(0, 20);
+  if (rid) remotesSeen.set((req.query.k === "regie" ? "regie:" : "remote:") + rid, Date.now());
   res.json({ state: adminState, now: Date.now(), moderation: moderationEnabled });
 });
 
+app.get("/api/remotes", (req, res) => {
+  if (!isAdmin(req)) return res.status(401).json({ error: "Non autorisé" });
+  const now = Date.now();
+  let remote = 0, regie = 0;
+  for (const [key, t] of remotesSeen) {
+    if (now - t > 60000) { remotesSeen.delete(key); continue; }
+    if (now - t < 6000) { if (key.startsWith("regie:")) regie++; else remote++; }
+  }
+  res.json({ remote, regie });
+});
+
+// --- Direct caméra (WebRTC) : le serveur ne fait que passer les messages de connexion téléphone <-> écran.
+//     La vidéo elle-même va directement du téléphone à la page admin, elle ne transite pas par ici. ---
+let liveMsgs = [];
+let liveSeq = 0;
+function livePush(to, type, sid, data) {
+  liveMsgs.push({ id: ++liveSeq, to, type, sid, data });
+  if (liveMsgs.length > 300) liveMsgs = liveMsgs.slice(-300);
+}
+app.post("/api/live/send", express.text({ type: "*/*", limit: "100kb" }), (req, res) => {
+  if (!isAdmin(req)) return res.status(401).json({ error: "Non autorisé" });
+  const to = req.query.to === "phone" ? "phone" : "admin";
+  const type = String(req.query.type || "");
+  if (!["offer", "answer", "ice", "stop"].includes(type)) return res.status(400).json({ error: "type inconnu" });
+  livePush(to, type, String(req.query.sid || "").slice(0, 40), typeof req.body === "string" ? req.body.slice(0, 20000) : "");
+  res.json({ ok: true });
+});
+app.get("/api/live/recv", (req, res) => {
+  if (!isAdmin(req)) return res.status(401).json({ error: "Non autorisé" });
+  const to = req.query.for === "phone" ? "phone" : "admin";
+  const after = parseInt(req.query.after, 10) || 0;
+  res.json({ last: liveSeq, msgs: liveMsgs.filter(m => m.to === to && m.id > after) });
+});
+// Coupe le direct (bouton du téléphone, de la régie PC, ou fermeture de la page). sid=* coupe tout.
+app.post("/api/live/stop", (req, res) => {
+  if (!isAdmin(req)) return res.status(401).json({ error: "Non autorisé" });
+  const sid = String(req.query.sid || "*").slice(0, 40);
+  livePush("admin", "stop", sid, "");
+  livePush("phone", "stop", sid, "");
+  res.json({ ok: true });
+});
+
 // --- Suppression d'une photo précise (photo refusée en validation manuelle) ---
-app.post("/api/photo-delete", (req, res) => {
+app.post("/api/photo-delete", async (req, res) => {
   if (!isAdmin(req)) return res.status(401).json({ error: "Non autorisé" });
   const id = String(req.query.id || "");
-  if (!/^[0-9-]+\.jpg$/.test(id)) return res.status(400).json({ error: "id invalide" });
   photos = photos.filter(p => p.id !== id);
-  try { fs.unlinkSync(path.join(UPLOAD_DIR, id)); } catch (e) {}
+  try { await cloudinary.uploader.destroy(id); } catch (e) {}
   res.json({ success: true });
 });
 
