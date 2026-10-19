@@ -90,6 +90,16 @@
     </div>
     <div class="row"><button class="btn" id="r-promo-add">Ajouter la promo</button></div>
     <div class="row">
+      <select id="r-ann-style" style="flex:1; padding:14px 8px; font-size:14px; background:#1b1b1e; color:#eee; border:1px solid #111; border-radius:10px;">
+        <option value="bounce">Animation : Rebond</option>
+        <option value="f1">Animation : Bandeau F1</option>
+        <option value="scroll">Animation : Défilement</option>
+        <option value="zoom">Animation : Zoom</option>
+        <option value="neon">Animation : Néon</option>
+        <option value="random">Animation : Aléatoire</option>
+      </select>
+    </div>
+    <div class="row">
       <button class="btn" id="r-announce-hide">Retirer l'annonce</button>
       <button class="btn" id="r-ticker-promos">Promos défilantes</button>
     </div>
@@ -426,6 +436,9 @@ document.getElementById("r-color-btn").addEventListener("click", async () => {
 });
 
 // Annonces, défilement, compte à rebours
+document.getElementById("r-ann-style").addEventListener("change", async (e) => {
+  if (await send("ann_style", { text: e.target.value })) toast("Animation choisie");
+});
 document.getElementById("r-announce-hide").addEventListener("click", async () => {
   if (await send("announce_hide")) toast("Annonce retirée");
 });
