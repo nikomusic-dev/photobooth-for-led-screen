@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>Portland Pub - Réagis !</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+  body { background: #0a0a0a; color: #fff; font-family: -apple-system, 'Segoe UI', sans-serif; padding: 16px; max-width: 520px; margin: 0 auto; user-select: none; -webkit-user-select: none; -webkit-touch-callout: none; touch-action: manipulation; }
+  header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 14px; }
+  header img { height: 44px; }
+  header a { color: #ff4d8d; font-size: 13px; text-decoration: none; font-weight: 700; }
+  h2 { font-size: 15px; letter-spacing: 1px; text-transform: uppercase; color: #ff4d8d; margin: 18px 0 10px; }
+  #pad { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; }
+  #pad button { font-size: 40px; padding: 16px 0; background: #1c1c1e; border: 1px solid #333; border-radius: 16px; }
+  #pad button:active { background: #ff4d8d; transform: scale(0.92); }
+  #off { display: none; text-align: center; color: #999; padding: 20px 0; font-size: 14px; }
+  #poll-box { background: #141416; border-radius: 16px; padding: 14px; display: none; }
+  #poll-q { font-size: 20px; font-weight: 800; margin-bottom: 12px; }
+  .opt { position: relative; display: block; width: 100%; text-align: left; margin-bottom: 8px; padding: 14px; border-radius: 12px; border: 2px solid #333; background: #1c1c1e; color: #fff; font-size: 17px; font-weight: 700; overflow: hidden; }
+  .opt .bar { position: absolute; left: 0; top: 0; bottom: 0; background: rgba(255,77,141,0.35); width: 0; transition: width 0.4s; }
+  .opt span { position: relative; }
+  .opt .pct { float: right; }
+  .opt.mine { border-color: #ff4d8d; }
+  #poll-state { font-size: 12px; color: #999; margin-top: 4px; }
+  #no-poll { color: #777; font-size: 14px; padding: 8px 0; }
+</style>
+</head>
+<body>
+<header>
+  <img src="logo.png" alt="Portland Pub">
+  <a href="guest.html">📸 Retour photo</a>
+</header>
+
+<h2>Tapote pour réagir sur l'écran !</h2>
+<div id="pad"></div>
+<div id="off">Les réactions sont en pause pour le moment.</div>
+
+<h2>Le vote</h2>
+<div id="no-poll">Pas de vote en cours. Reste dans le coin !</div>
+<div id="poll-box">
+  <div id="poll-q"></div>
+  <div id="poll-opts"></div>
+  <div id="poll-state"></div>
+</div>
+
+<script>
+const SERVER_URL = "https://niko-photobooth-for-led-screen.onrender.com";
+let gid = "";
+try { gid = localStorage.getItem("fun_id") || ""; } catch (e) {}
+if (!gid) {
+  gid = Math.random().toString(36).slice(2) + Date.now().toString(36);
+  try { localStorage.setItem("fun_id", gid); } catch (e) {}
+}
+const $ = id => document.getElementById(id);
+
+// --- Emojis : on regroupe les taps et on envoie toutes les 250 ms ---
+const pending = {};
+function flush() {
+  for (const e of Object.keys(pending)) {
+    const n = pending[e]; delete pending[e];
+    fetch(`${SERVER_URL}/api/react?id=${encodeURIComponent(gid)}&e=${encodeURIComponent(e)}&n=${n}`, { method: "POST" }).catch(() => {});
+  }
+}
+setInterval(flush, 250);
+function buildPad(list) {
+  if ($("pad").children.length) return;
+  list.forEach(e => {
+    const b = document.createElement("button");
+    b.textContent = e;
+    b.addEventListener("click", () => {
+      pending[e] = Math.min((pending[e] || 0) + 1, 12);
+      if (navigator.vibrate) navigator.vibrate(15);
+    });
+    $("pad").appendChild(b);
+  });
+}
+
+// --- Vote ---
+let myVote = -1, myPollId = 0, lastPollJson = "";
+async function vote(i) {
+  try {
+    const r = await fetch(`${SERVER_URL}/api/vote?id=${encodeURIComponent(gid)}&i=${i}`, { method: "POST" });
+    if (r.ok) { myVote = i; lastPollJson = ""; refresh(); }
+  } catch (e) {}
+}
+function renderPoll(poll) {
+  const box = $("poll-box");
+  if (!poll) { box.style.display = "none"; $("no-poll").style.display = "block"; return; }
+  $("no-poll").style.display = "none"; box.style.display = "block";
+  $("poll-q").textContent = poll.question || "Votre choix ?";
+  const total = poll.votes.reduce((a, b) => a + b, 0);
+  const wrap = $("poll-opts"); wrap.innerHTML = "";
+  poll.options.forEach((o, i) => {
+    const b = document.createElement("button");
+    b.className = "opt" + (i === myVote ? " mine" : "");
+    const pct = total ? Math.round(poll.votes[i] * 100 / total) : 0;
+    b.innerHTML = `<div class="bar" style="width:${pct}%"></div><span class="pct">${poll.open && myVote < 0 ? "" : pct + "%"}</span><span></span>`;
+    b.lastChild.textContent = o;
+    if (poll.open) b.addEventListener("click", () => vote(i));
+    wrap.appendChild(b);
+  });
+  $("poll-state").textContent = poll.open ? (myVote >= 0 ? "Merci ! Tu peux changer ton vote." : "Touche ton choix pour voter") : "Vote terminé - regarde l'écran !";
+}
+async function refresh() {
+  try {
+    const d = await (await fetch(`${SERVER_URL}/api/fun`)).json();
+    buildPad(d.emojis);
+    $("pad").style.display = d.reactionsOn ? "grid" : "none";
+    $("off").style.display = d.reactionsOn ? "none" : "block";
+    if (d.poll && d.poll.id !== myPollId) {
+      myPollId = d.poll.id; myVote = -1;
+      const m = await (await fetch(`${SERVER_URL}/api/my-vote?id=${encodeURIComponent(gid)}`)).json();
+      if (m.pollId === d.poll.id) myVote = m.mine;
+    }
+    const j = JSON.stringify(d.poll);
+    if (j !== lastPollJson) { lastPollJson = j; renderPoll(d.poll); }
+  } catch (e) {}
+}
+refresh();
+setInterval(refresh, 2000);
+</script>
+</body>
+</html>
