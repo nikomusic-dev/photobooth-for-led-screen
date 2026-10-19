@@ -1,0 +1,592 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Régie PC - Photobooth</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+  html, body { height: 100%; }
+  body { background: #2a2a2d; color: #ddd; font-family: 'Segoe UI', -apple-system, sans-serif; padding: 12px; }
+  #login { display: flex; flex-direction: column; gap: 12px; align-items: center; margin-top: 18vh; }
+  #login input { padding: 12px; border-radius: 8px; border: none; width: 260px; font-size: 16px; }
+  #login button { padding: 12px 28px; border-radius: 8px; border: none; background: #ff4d8d; color: #fff; font-weight: 700; font-size: 16px; cursor: pointer; }
+  #login-error { color: #ff4d8d; font-size: 13px; min-height: 16px; }
+
+  /* Page = un grand rectangle : bandeau d'état en haut + 8 blocs de même taille qui remplissent tout l'écran */
+  #remote { display: none; flex-direction: column; gap: 12px; height: 100%; }
+  #head { display: flex; align-items: center; gap: 20px; flex: 0 0 auto; }
+  #status { display: flex; align-items: center; gap: 8px; font-size: 14px; flex: 1; }
+  #dot { width: 12px; height: 12px; border-radius: 50%; background: #777; }
+  #dot.on { background: #34c759; }
+  #counters { display: grid; grid-template-columns: repeat(4, 110px); gap: 8px; }
+  .counter { background: #19191b; border-radius: 8px; padding: 5px 4px; text-align: center; font-size: 10px; letter-spacing: 0.4px; text-transform: uppercase; color: #999; box-shadow: inset 0 1px 3px rgba(0,0,0,0.6); }
+  .counter b { display: block; font-size: 18px; color: #ff4d8d; }
+
+  #panels { flex: 1; min-height: 0; display: grid; grid-template-columns: repeat(4, 1fr); grid-template-rows: repeat(2, 1fr); gap: 12px; }
+  .panel { background: #1f1f22; border-radius: 10px; padding: 12px; font-size: 11px; text-transform: uppercase; letter-spacing: 0.4px; color: #999; overflow-y: auto; min-height: 0; }
+  .panel h3 { font-size: 12px; color: #ff4d8d; letter-spacing: 1.5px; margin-bottom: 8px; }
+  @media (max-width: 1100px) {
+    html, body { height: auto; }
+    #remote { height: auto; }
+    #panels { grid-template-columns: repeat(2, 1fr); grid-template-rows: repeat(4, minmax(300px, auto)); }
+  }
+
+  button, select, input[type=range] { touch-action: manipulation; }
+  .btn { background: linear-gradient(180deg, #4a4a4d, #2f2f31); color: #eee; border: 1px solid #111; border-top: 1px solid #5c5c5f; border-radius: 6px; padding: 11px 8px; min-height: 44px; font-size: 12px; font-weight: 700; letter-spacing: 0.4px; text-transform: uppercase; box-shadow: 0 2px 4px rgba(0,0,0,0.5); cursor: pointer; font-family: inherit; user-select: none; -webkit-user-select: none; -webkit-touch-callout: none; }
+  .btn:hover { background: linear-gradient(180deg, #58585b, #38383a); }
+  .btn:active { box-shadow: inset 0 2px 4px rgba(0,0,0,0.6); transform: translateY(1px); }
+  .btn.active { background: linear-gradient(180deg, #ff4d8d, #c2316a); color: #fff; }
+  .btn.danger { color: #ff7b7b; }
+  .btn.wide { grid-column: 1 / -1; }
+  #grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 8px; }
+  .panel input[type=text] { width: 100%; margin: 6px 0; padding: 10px 12px; border-radius: 6px; border: none; background: #19191b; color: #fff; font-size: 15px; }
+  .panel input[type=range] { width: 100%; accent-color: #ff4d8d; margin: 8px 0; }
+  .row { display: flex; gap: 8px; align-items: center; margin-top: 6px; }
+  .row .btn { flex: 1; }
+  .row input[type=text] { margin: 0; }
+  .chips { display: flex; flex-wrap: wrap; gap: 6px; margin: 6px 0; }
+  .chips .btn { flex: 1 1 100px; padding: 8px 6px; font-size: 11px; }
+  .pcard { display: flex; align-items: center; gap: 8px; margin-top: 8px; }
+  .pcard img { width: 64px; height: 64px; object-fit: cover; border-radius: 6px; }
+  .pcard .cap { flex: 1; color: #ccc; font-size: 13px; }
+  .pcard .btn { flex: 0 0 auto; padding: 12px 16px; }
+  #toast { position: fixed; left: 50%; bottom: 24px; transform: translateX(-50%); background: #000; color: #fff; padding: 8px 16px; border-radius: 20px; font-size: 13px; opacity: 0; transition: opacity 0.2s; pointer-events: none; }
+  #toast.show { opacity: 0.9; }
+</style>
+</head>
+<body>
+
+<div id="login">
+  <h2>Régie PC</h2>
+  <input id="user-input" placeholder="Identifiant" autocapitalize="off" />
+  <input id="pass-input" type="password" placeholder="Mot de passe" />
+  <button id="login-btn">Connexion</button>
+  <div id="login-error"></div>
+</div>
+
+<div id="remote">
+  <div id="head">
+    <div id="status"><span id="dot"></span><span id="status-text">Connexion à l'écran...</span></div>
+    <div id="counters">
+      <div class="counter"><b id="c-received">0</b>Reçues</div>
+      <div class="counter"><b id="c-shown">0</b>Diffusées</div>
+      <div class="counter"><b id="c-queue">0</b>Attente</div>
+      <div class="counter"><b id="c-guests">0</b>Téléphones</div>
+    </div>
+  </div>
+
+  <div id="panels">
+
+    <div class="panel">
+      <h3>Commandes</h3>
+      <div id="grid">
+        <button class="btn" data-cmd="clear">Mélanger / Effacer</button>
+        <button class="btn" id="b-pause" data-cmd="pause">Pause</button>
+        <button class="btn" id="b-qr" data-cmd="qr">Cacher QR code</button>
+        <button class="btn" data-cmd="meme">Effet surprise</button>
+        <button class="btn" id="b-blackout" data-cmd="blackout">Blackout</button>
+        <button class="btn" id="b-test" data-cmd="test">Mode test</button>
+        <button class="btn wide" id="b-strobe">Stroboscope (maintenir)</button>
+        <a class="btn wide" id="r-gallery" target="_blank" style="text-decoration:none; text-align:center; display:block; line-height:22px;">Photos : galerie / tout télécharger</a>
+        <button class="btn wide danger" id="b-live-stop">Couper le direct caméra</button>
+        <button class="btn" id="b-moderation">Modération : ON</button>
+        <button class="btn danger" id="b-purge">Purger les photos</button>
+      </div>
+      Durée d'affichage : <b id="dur-value">30</b> s
+      <input type="range" id="dur-slider" min="5" max="60" value="30">
+    </div>
+
+    <div class="panel">
+      <h3>Message à l'écran</h3>
+      <input type="text" id="text-input" maxlength="40" placeholder="Ex : Bienvenue !">
+      <div class="row">
+        <button class="btn" id="b-text-show">Afficher</button>
+        <button class="btn" id="b-text-clear">Retirer</button>
+      </div>
+    </div>
+
+    <div class="panel">
+      <h3>Promos &amp; annonces</h3>
+      <div id="r-promos" class="chips"></div>
+      <div class="row">
+        <input type="text" id="r-promo-name" placeholder="Nom (ex : Shot)" maxlength="24">
+        <input type="text" id="r-promo-price" placeholder="Prix" maxlength="10" style="width:80px;">
+      </div>
+      <div class="row"><button class="btn" id="r-promo-add">Ajouter la promo</button></div>
+      <div class="row">
+        <select id="r-ann-style" style="flex:1; padding:12px 8px; font-size:14px; background:#1b1b1e; color:#eee; border:1px solid #111; border-radius:6px;">
+          <option value="bounce">Animation : Rebond</option>
+          <option value="f1">Animation : Bandeau F1</option>
+          <option value="scroll">Animation : Défilement</option>
+          <option value="zoom">Animation : Zoom</option>
+          <option value="neon">Animation : Néon</option>
+          <option value="random">Animation : Aléatoire</option>
+        </select>
+      </div>
+      <div class="row">
+        <button class="btn" id="r-announce-hide">Retirer l'annonce</button>
+        <button class="btn" id="r-ticker-promos">Promos défilantes</button>
+      </div>
+    </div>
+
+    <div class="panel">
+      <h3>Ambiance</h3>
+      <div id="r-themes" class="chips"></div>
+      <div id="r-fx" class="chips"></div>
+      <div class="row">
+        <input type="color" id="r-color" value="#ff0066" style="height:40px; width:60px; border:none; background:none;">
+        <button class="btn" id="r-color-btn">Couleur unie</button>
+        <input type="color" id="r-color2" value="#0066ff" style="height:40px; width:60px; border:none; background:none;">
+        <button class="btn" id="r-grad-btn">Dégradé</button>
+      </div>
+      Vitesse du fond : <b id="r-speed-val">20</b> s
+      <input type="range" id="r-speed" min="5" max="60" value="20">
+      Luminosité : <b id="r-bright-val">100</b> %
+      <input type="range" id="r-bright" min="10" max="100" value="100">
+    </div>
+
+    <div class="panel">
+      <h3>Diffusion des photos</h3>
+      <div id="r-toggles" class="chips"></div>
+      <div id="r-actions" class="chips"></div>
+      <div class="row">
+        <input type="text" id="r-celebrate-n" inputmode="numeric" value="50" style="width:70px;">
+        <button class="btn" id="r-celebrate-save">Célébrer toutes les N photos</button>
+      </div>
+      <div id="r-pending-panel" style="display:none; margin-top:14px;">
+        <h3>Photos à valider</h3>
+        <div id="r-pending"></div>
+      </div>
+    </div>
+
+    <div class="panel">
+      <h3>Affichages spéciaux</h3>
+      <h3 style="color:#999;">Compte à rebours</h3>
+      <div class="row">
+        <input type="text" id="r-cd-min" inputmode="numeric" value="10" style="width:70px;">
+        <input type="text" id="r-cd-label" placeholder="Libellé" maxlength="30">
+      </div>
+      <div class="row">
+        <button class="btn" id="r-cd-start">Lancer (min)</button>
+        <button class="btn" id="r-cd-midnight">Jusqu'à minuit</button>
+      </div>
+      <h3 style="margin-top:16px; color:#999;">Texte défilant</h3>
+      <input type="text" id="r-ticker-text" maxlength="120" placeholder="Ex : Happy Hour jusqu'à 22h !">
+      <div class="row">
+        <button class="btn" id="r-ticker-start">Lancer</button>
+      </div>
+    </div>
+
+    <div class="panel">
+      <h3>QR n°2 (ex : Instagram)</h3>
+      <input type="text" id="r-qr2-url" placeholder="https://instagram.com/..." maxlength="200">
+      <div class="row">
+        <input type="text" id="r-qr2-label" placeholder="Libellé" maxlength="14">
+        <button class="btn" id="r-qr2-save">Enregistrer</button>
+      </div>
+    </div>
+
+    <div class="panel">
+      <h3>Participation du public</h3>
+      <div class="row">
+        <button class="btn" id="r-fun-on">Réactions ON</button>
+        <button class="btn" id="r-fun-off">Réactions OFF</button>
+      </div>
+      <input type="text" id="r-poll-q" maxlength="60" placeholder="Question du vote">
+      <input type="text" id="r-poll-o" maxlength="90" placeholder="Choix séparés par une virgule (2 à 4)">
+      <div class="row">
+        <button class="btn" id="r-poll-start">Lancer le vote</button>
+        <button class="btn" id="r-poll-stop">Clôturer</button>
+        <button class="btn danger" id="r-poll-clear">Effacer</button>
+      </div>
+    </div>
+
+  </div>
+</div>
+<div id="toast"></div>
+
+<script>
+const SERVER_URL = "https://niko-photobooth-for-led-screen.onrender.com";
+const ADMIN_USER = "NIKO";
+const ADMIN_PASS = "27012022";
+const RID = Math.random().toString(36).slice(2, 10);
+
+function toast(msg) {
+  const t = document.getElementById("toast");
+  t.textContent = msg;
+  t.classList.add("show");
+  clearTimeout(toast.timer);
+  toast.timer = setTimeout(() => t.classList.remove("show"), 1200);
+}
+
+async function send(cmd, extra) {
+  const params = new URLSearchParams({ cmd, p: ADMIN_PASS, ...(extra || {}) });
+  try {
+    const res = await fetch(`${SERVER_URL}/api/command?${params}`, { method: "POST" });
+    if (!res.ok) throw new Error();
+    return true;
+  } catch (e) {
+    toast("Erreur d'envoi");
+    return false;
+  }
+}
+
+function setActive(id, on, labelOn, labelOff) {
+  const b = document.getElementById(id);
+  b.classList.toggle("active", !!on);
+  if (labelOn) b.textContent = on ? labelOn : labelOff;
+}
+
+async function pollState() {
+  try {
+    const res = await fetch(`${SERVER_URL}/api/state?p=${encodeURIComponent(ADMIN_PASS)}&r=${RID}&k=regie`);
+    const data = await res.json();
+    const s = data.state;
+    const online = s && (data.now - s.updatedAt) < 8000;
+    document.getElementById("dot").classList.toggle("on", !!online);
+    document.getElementById("status-text").textContent = online ? "Écran (page admin) en ligne" : "Écran (page admin) hors ligne";
+    setActive("b-moderation", data.moderation === false, "Modération : OFF", "Modération : ON");
+    if (!s) return;
+    document.getElementById("c-received").textContent = s.received;
+    document.getElementById("c-shown").textContent = s.shown;
+    document.getElementById("c-queue").textContent = s.queue;
+    document.getElementById("c-guests").textContent = s.guests;
+    setActive("b-pause", s.paused, "Reprendre", "Pause");
+    setActive("b-qr", s.qrHidden, "Afficher QR code", "Cacher QR code");
+    setActive("b-blackout", s.blackout);
+    setActive("b-test", s.test, "Arrêter le test", "Mode test");
+    renderExtras(s);
+  } catch (e) {
+    document.getElementById("dot").classList.remove("on");
+    document.getElementById("status-text").textContent = "Serveur injoignable";
+  }
+}
+
+function showRemote() {
+  document.getElementById("login").style.display = "none";
+  document.getElementById("remote").style.display = "flex";
+  pollState();
+  setInterval(pollState, 1500);
+}
+
+document.getElementById("login-btn").addEventListener("click", () => {
+  const u = document.getElementById("user-input").value;
+  const p = document.getElementById("pass-input").value;
+  if (u === ADMIN_USER && p === ADMIN_PASS) {
+    try { localStorage.setItem("remote-ok", "1"); } catch (e) {}
+    showRemote();
+  } else {
+    document.getElementById("login-error").textContent = "Identifiants incorrects";
+  }
+});
+try { if (localStorage.getItem("remote-ok") === "1") showRemote(); } catch (e) {}
+
+// Boutons simples
+document.querySelectorAll("[data-cmd]").forEach(btn => {
+  btn.addEventListener("click", async () => {
+    if (await send(btn.dataset.cmd)) toast("Envoyé");
+    setTimeout(pollState, 600);
+  });
+});
+
+// Purge (avec confirmation sur le téléphone)
+document.getElementById("b-purge").addEventListener("click", async () => {
+  if (!confirm("Supprimer définitivement TOUTES les photos du serveur ?")) return;
+  if (await send("purge")) toast("Photos supprimées");
+});
+
+// ===== Fonctions avancées =====
+function mk(tag, cls, text) {
+  const e = document.createElement(tag);
+  if (cls) e.className = cls;
+  if (text) e.textContent = text;
+  return e;
+}
+const TOGGLES = [
+  ["replay", "Rediffusion auto", "replay"],
+  ["approval", "Validation manuelle", "approval"],
+  ["celebrate", "Célébrations", "celebrate"],
+  ["clock", "Horloge", "clock"],
+  ["logo_full", "Logo plein écran", "logoFull"],
+  ["qr2", "QR n°2 alterné", "qr2"]
+];
+const ACTIONS = [
+  ["remove_last", "Retirer la dernière photo"],
+  ["winner", "Tirage au sort"],
+  ["countdown_stop", "Annuler le compte à rebours"],
+  ["ticker_stop", "Arrêter le défilant"]
+];
+TOGGLES.forEach(([cmd, label]) => {
+  const b = mk("button", "btn", label + " : OFF");
+  b.id = "t-" + cmd;
+  b.addEventListener("click", async () => {
+    if (await send(cmd)) toast("Envoyé");
+    setTimeout(pollState, 600);
+  });
+  document.getElementById("r-toggles").appendChild(b);
+});
+ACTIONS.forEach(([cmd, label]) => {
+  const b = mk("button", "btn", label);
+  b.addEventListener("click", async () => { if (await send(cmd)) toast("Envoyé"); });
+  document.getElementById("r-actions").appendChild(b);
+});
+
+let promosKey = "", themesKey = "", pendingKey = "", fxKey = "", slidersInit = false;
+function renderExtras(s) {
+  TOGGLES.forEach(([cmd, label, key]) => setActive("t-" + cmd, s[key], label + " : ON", label + " : OFF"));
+
+  // Promos (la liste vient du PC)
+  const pk = JSON.stringify(s.promos || []);
+  if (pk !== promosKey) {
+    promosKey = pk;
+    const box = document.getElementById("r-promos");
+    box.innerHTML = "";
+    (s.promos || []).forEach((p, i) => {
+      const b = mk("button", "btn", (p.name + " " + p.price).trim());
+      b.addEventListener("click", async () => { if (await send("promo", { value: i })) toast("Annonce envoyée"); });
+      const x = mk("button", "btn", "✕");
+      x.style.flex = "0 0 44px";
+      x.addEventListener("click", async () => {
+        if (confirm("Supprimer cette promo ?") && await send("promo_del", { value: i })) {
+          toast("Promo supprimée");
+          setTimeout(pollState, 800);
+        }
+      });
+      box.append(b, x);
+    });
+  }
+
+  // Thèmes de fond
+  const tk = (s.themes || []).join(",");
+  if (tk !== themesKey) {
+    themesKey = tk;
+    const box = document.getElementById("r-themes");
+    box.innerHTML = "";
+    (s.themes || []).forEach(name => {
+      const b = mk("button", "btn", name);
+      b.dataset.theme = name;
+      b.addEventListener("click", async () => {
+        if (await send("theme", { text: name })) toast("Thème : " + name);
+        setTimeout(pollState, 600);
+      });
+      box.appendChild(b);
+    });
+  }
+  document.querySelectorAll("#r-themes .btn").forEach(b => b.classList.toggle("active", b.dataset.theme === s.theme));
+
+  // Effets de fond
+  const fk = (s.fxs || []).join(",");
+  if (fk !== fxKey) {
+    fxKey = fk;
+    const box = document.getElementById("r-fx");
+    box.innerHTML = "";
+    (s.fxs || []).forEach(name => {
+      const b = mk("button", "btn", name);
+      b.dataset.fx = name;
+      b.addEventListener("click", async () => {
+        if (await send("fx", { text: name })) toast("Effet : " + name);
+        setTimeout(pollState, 600);
+      });
+      box.appendChild(b);
+    });
+  }
+  document.querySelectorAll("#r-fx .btn").forEach(b => b.classList.toggle("active", b.dataset.fx === s.fx));
+
+  // Curseurs : valeurs du PC reprises une seule fois
+  if (!slidersInit && s.speed) {
+    slidersInit = true;
+    document.getElementById("r-speed").value = s.speed;
+    document.getElementById("r-speed-val").textContent = s.speed;
+    document.getElementById("r-bright").value = s.bright;
+    document.getElementById("r-bright-val").textContent = s.bright;
+    document.getElementById("r-qr2-url").value = s.qr2url || "";
+    document.getElementById("r-qr2-label").value = s.qr2label || "";
+    document.getElementById("r-celebrate-n").value = s.celebrateN || 50;
+  }
+
+  // Photos à valider (validation manuelle)
+  const list = s.pending || [];
+  const pend = list.map(p => p.id).join(",");
+  if (pend !== pendingKey) {
+    pendingKey = pend;
+    const box = document.getElementById("r-pending");
+    box.innerHTML = "";
+    if (list.length > 1) {
+      const all = mk("button", "btn", "Tout valider (" + list.length + ")");
+      all.addEventListener("click", async () => { await send("approve_all"); setTimeout(pollState, 600); });
+      box.appendChild(all);
+    }
+    list.forEach(p => {
+      const row = mk("div", "pcard");
+      const img = mk("img");
+      img.src = p.url;
+      const cap = mk("div", "cap", p.caption);
+      const ok = mk("button", "btn", "✓");
+      ok.addEventListener("click", async () => { await send("approve", { text: p.id }); setTimeout(pollState, 600); });
+      const no = mk("button", "btn", "✕");
+      no.addEventListener("click", async () => { await send("reject", { text: p.id }); setTimeout(pollState, 600); });
+      row.append(img, cap, ok, no);
+      box.appendChild(row);
+    });
+  }
+  document.getElementById("r-pending-panel").style.display = (s.approval || list.length) ? "block" : "none";
+}
+
+// Curseurs ambiance
+const rSpeed = document.getElementById("r-speed");
+const rBright = document.getElementById("r-bright");
+rSpeed.addEventListener("input", () => { document.getElementById("r-speed-val").textContent = rSpeed.value; });
+rSpeed.addEventListener("change", () => send("speed", { value: rSpeed.value }));
+rBright.addEventListener("input", () => { document.getElementById("r-bright-val").textContent = rBright.value; });
+rBright.addEventListener("change", () => send("brightness", { value: rBright.value }));
+
+// Galerie des photos (ouvre la page de téléchargement du serveur)
+document.getElementById("r-gallery").href = `${SERVER_URL}/gallery`;
+
+// Gestion des promos
+document.getElementById("r-promo-add").addEventListener("click", async () => {
+  const name = document.getElementById("r-promo-name").value.trim();
+  const price = document.getElementById("r-promo-price").value.trim();
+  if (!name) return;
+  if (await send("promo_add", { text: name + "|" + price })) {
+    document.getElementById("r-promo-name").value = "";
+    document.getElementById("r-promo-price").value = "";
+    toast("Promo ajoutée");
+    setTimeout(pollState, 800);
+  }
+});
+
+// Dégradé perso
+document.getElementById("r-grad-btn").addEventListener("click", async () => {
+  const a = document.getElementById("r-color").value;
+  const b = document.getElementById("r-color2").value;
+  if (await send("bggrad", { text: a + "," + b })) toast("Dégradé envoyé");
+});
+
+// QR n°2
+document.getElementById("r-qr2-save").addEventListener("click", async () => {
+  const url = document.getElementById("r-qr2-url").value.trim();
+  const label = document.getElementById("r-qr2-label").value.trim();
+  if (url && !/^https?:\/\//i.test(url)) { toast("L'adresse doit commencer par https://"); return; }
+  if (await send("qr2_set", { text: url + "|" + label })) toast("QR n°2 enregistré");
+});
+
+// Célébrations : tous les N photos
+document.getElementById("r-celebrate-save").addEventListener("click", async () => {
+  const n = parseInt(document.getElementById("r-celebrate-n").value, 10) || 50;
+  if (await send("celebrate_n", { value: n })) toast("Enregistré : toutes les " + n + " photos");
+});
+
+// Couleur de fond unie
+document.getElementById("r-color-btn").addEventListener("click", async () => {
+  if (await send("bgcolor", { text: document.getElementById("r-color").value })) toast("Couleur envoyée");
+});
+
+// Annonces, défilement, compte à rebours
+document.getElementById("r-ann-style").addEventListener("change", async (e) => {
+  if (await send("ann_style", { text: e.target.value })) toast("Animation choisie");
+});
+document.getElementById("r-announce-hide").addEventListener("click", async () => {
+  if (await send("announce_hide")) toast("Annonce retirée");
+});
+document.getElementById("r-ticker-promos").addEventListener("click", async () => {
+  if (await send("ticker", { text: "promos" })) toast("Défilement lancé");
+});
+document.getElementById("r-ticker-start").addEventListener("click", async () => {
+  const v = document.getElementById("r-ticker-text").value.trim();
+  if (v && await send("ticker", { text: v })) toast("Défilement lancé");
+});
+document.getElementById("r-cd-start").addEventListener("click", async () => {
+  const min = parseFloat(document.getElementById("r-cd-min").value) || 1;
+  const label = document.getElementById("r-cd-label").value.trim();
+  if (await send("countdown", { value: Math.round(min * 60), text: label })) toast("Compte à rebours lancé");
+});
+document.getElementById("r-cd-midnight").addEventListener("click", async () => {
+  const now = new Date();
+  const t = new Date(now);
+  t.setHours(24, 0, 0, 0);
+  const label = document.getElementById("r-cd-label").value.trim() || "Minuit dans";
+  if (await send("countdown", { value: Math.round((t - now) / 1000), text: label })) toast("Compte à rebours lancé");
+});
+
+// Touche Entrée dans un champ = bouton principal du bloc
+[["text-input","b-text-show"],["r-ticker-text","r-ticker-start"],["r-cd-label","r-cd-start"],["r-promo-price","r-promo-add"],["r-promo-name","r-promo-add"]].forEach(([i,b]) => {
+  document.getElementById(i).addEventListener("keydown", (e) => { if (e.key === "Enter") document.getElementById(b).click(); });
+});
+
+// Modération ON / OFF
+document.getElementById("b-moderation").addEventListener("click", async () => {
+  const wasOn = !document.getElementById("b-moderation").classList.contains("active");
+  try {
+    await fetch(`${SERVER_URL}/api/moderation?on=${wasOn ? 0 : 1}&p=${encodeURIComponent(ADMIN_PASS)}`, { method: "POST" });
+    toast(wasOn ? "Modération coupée" : "Modération activée");
+  } catch (e) {
+    toast("Erreur d'envoi");
+  }
+  setTimeout(pollState, 500);
+});
+
+// Stroboscope : actif seulement tant qu'on maintient le doigt appuyé
+const strobeBtn = document.getElementById("b-strobe");
+let strobeIsOn = false;
+strobeBtn.addEventListener("pointerdown", (e) => {
+  e.preventDefault();
+  if (strobeIsOn) return;
+  strobeIsOn = true;
+  strobeBtn.classList.add("active");
+  send("strobe_on");
+});
+function strobeStop() {
+  if (!strobeIsOn) return;
+  strobeIsOn = false;
+  strobeBtn.classList.remove("active");
+  send("strobe_off");
+}
+["pointerup", "pointerleave", "pointercancel"].forEach(ev => strobeBtn.addEventListener(ev, strobeStop));
+strobeBtn.addEventListener("contextmenu", (e) => e.preventDefault());
+
+// Durée d'affichage
+const durSlider = document.getElementById("dur-slider");
+durSlider.addEventListener("input", () => {
+  document.getElementById("dur-value").textContent = durSlider.value;
+});
+durSlider.addEventListener("change", () => send("duration", { value: durSlider.value }));
+
+// Message à l'écran
+document.getElementById("b-text-show").addEventListener("click", async () => {
+  const v = document.getElementById("text-input").value.trim();
+  if (!v) return;
+  if (await send("text_show", { text: v })) toast("Message envoyé");
+});
+document.getElementById("b-text-clear").addEventListener("click", async () => {
+  if (await send("text_clear")) toast("Message retiré");
+});
+
+async function funAdmin(a, extra) {
+  const params = new URLSearchParams({ a, p: ADMIN_PASS, ...(extra || {}) });
+  try {
+    const res = await fetch(`${SERVER_URL}/api/fun-admin?${params}`, { method: "POST" });
+    if (!res.ok) throw new Error();
+    toast("OK");
+  } catch (e) { toast("Erreur (2 choix minimum ?)"); }
+}
+document.getElementById("r-fun-on").onclick = () => funAdmin("react_on");
+document.getElementById("r-fun-off").onclick = () => funAdmin("react_off");
+document.getElementById("r-poll-start").onclick = () => funAdmin("poll_start", {
+  q: document.getElementById("r-poll-q").value,
+  o: document.getElementById("r-poll-o").value.split(",").join("|")
+});
+document.getElementById("r-poll-stop").onclick = () => funAdmin("poll_stop");
+document.getElementById("r-poll-clear").onclick = () => funAdmin("poll_clear");
+
+// Direct caméra : coupure d'urgence depuis la régie
+document.getElementById("b-live-stop").addEventListener("click", async () => {
+  try {
+    await fetch(`${SERVER_URL}/api/live/stop?sid=*&p=${encodeURIComponent(ADMIN_PASS)}`, { method: "POST" });
+    toast("Direct coupé");
+  } catch (e) { toast("Erreur d'envoi"); }
+});
+</script>
+</body>
+</html>
