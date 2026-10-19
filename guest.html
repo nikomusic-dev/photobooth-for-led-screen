@@ -183,7 +183,7 @@ let appStarted = false;
 function startApp() {
   if (appStarted) return;
   appStarted = true;
-  startCamera().then(() => detectLoop());
+  startCamera().then(startDetect);
 }
 
 setTimeout(() => {
@@ -261,6 +261,9 @@ document.getElementById("switch-cam").addEventListener("click", () => {
 
 let detectionAvailable = true;
 let gotResult = false;
+let everWorked = false;
+let lastResultAt = 0;
+let loopId = 0;
 let detectionFailures = 0;
 let firstSendAt = 0;
 let faceDetection = null;
@@ -277,6 +280,9 @@ try {
 
 if (faceDetection) faceDetection.onResults((results) => {
   gotResult = true;
+  everWorked = true;
+  lastResultAt = Date.now();
+  detectionFailures = 0;
   overlay.innerHTML = "";
   faceDetected = results.detections && results.detections.length > 0;
   if (faceDetected) {
@@ -300,8 +306,16 @@ if (faceDetection) faceDetection.onResults((results) => {
   }
 });
 
-async function detectLoop() {
-  if (!detectionAvailable) return;
+// Une seule boucle de détection à la fois (sinon, après la 1re photo, plusieurs boucles se marchaient dessus
+// et la modération finissait désactivée). startDetect() annule l'ancienne boucle avant d'en lancer une nouvelle.
+function startDetect() {
+  loopId++;
+  faceDetected = false;
+  lastResultAt = 0;
+  detectLoop(loopId);
+}
+async function detectLoop(id) {
+  if (id !== loopId || !detectionAvailable) return;
   try {
     if (video.readyState >= 2) {
       if (!firstSendAt) firstSendAt = Date.now();
@@ -310,19 +324,26 @@ async function detectLoop() {
   } catch (e) {
     detectionFailures++;
   }
-  // Si la détection ne répond pas (certains téléphones Android), on débloque la prise de photo
+  if (id !== loopId) return;
+  // Si la détection n'a JAMAIS répondu (certains téléphones Android), on débloque la prise de photo.
+  // Si elle a déjà fonctionné, on ne la désactive jamais : on la relance simplement.
   const stuck = firstSendAt && !gotResult && Date.now() - firstSendAt > 20000;
-  if (detectionFailures > 5 || stuck) {
+  if ((detectionFailures > 5 && !everWorked) || stuck) {
     detectionAvailable = false;
     overlay.innerHTML = "";
     statusMsg.textContent = "Prends ta photo quand tu es prêt !";
     return;
   }
-  requestAnimationFrame(detectLoop);
+  if (detectionFailures > 5) {
+    detectionFailures = 0;
+    setTimeout(() => detectLoop(id), 500);
+    return;
+  }
+  requestAnimationFrame(() => detectLoop(id));
 }
 
 shutterBtn.addEventListener("click", () => {
-  if (moderationOn && detectionAvailable && !faceDetected) {
+  if (moderationOn && detectionAvailable && !(faceDetected && Date.now() - lastResultAt < 3000)) {
     statusMsg.textContent = "Aucun visage détecté, réessaie !";
     return;
   }
@@ -339,6 +360,7 @@ shutterBtn.addEventListener("click", () => {
     document.getElementById("preview-img").src = URL.createObjectURL(blob);
     document.getElementById("camera-view").style.display = "none";
     document.getElementById("preview-view").style.display = "flex";
+    loopId++; // on arrête la détection pendant l'aperçu
     if (currentStream) currentStream.getTracks().forEach(t => t.stop());
   }, "image/jpeg", 0.9);
 });
@@ -346,7 +368,7 @@ shutterBtn.addEventListener("click", () => {
 document.getElementById("retake-btn").addEventListener("click", () => {
   document.getElementById("preview-view").style.display = "none";
   document.getElementById("camera-view").style.display = "flex";
-  startCamera().then(() => detectLoop());
+  startCamera().then(startDetect);
 });
 
 document.getElementById("send-btn").addEventListener("click", async () => {
@@ -378,7 +400,7 @@ document.getElementById("send-btn").addEventListener("click", async () => {
       document.getElementById("camera-view").style.display = "flex";
       document.getElementById("caption-input").value = "";
       sendBtn.disabled = false;
-      startCamera().then(() => detectLoop());
+      startCamera().then(startDetect);
     }, 2000);
   } catch (err) {
     status2.textContent = "Erreur lors de l'envoi, réessaie.";
