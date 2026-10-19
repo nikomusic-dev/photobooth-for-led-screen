@@ -141,6 +141,20 @@
     </div>
   </div>
   <div class="panel">
+    Participation du public
+    <div class="row">
+      <button class="btn" id="r-fun-on">Réactions ON</button>
+      <button class="btn" id="r-fun-off">Réactions OFF</button>
+    </div>
+    <input type="text" id="r-poll-q" maxlength="60" placeholder="Question du vote">
+    <input type="text" id="r-poll-o" maxlength="90" placeholder="Choix séparés par une virgule (2 à 4)">
+    <div class="row">
+      <button class="btn" id="r-poll-start">Lancer le vote</button>
+      <button class="btn" id="r-poll-stop">Clôturer</button>
+      <button class="btn danger" id="r-poll-clear">Effacer</button>
+    </div>
+  </div>
+  <div class="panel">
     Compte à rebours
     <div class="row">
       <input type="text" id="r-cd-min" inputmode="numeric" value="10" style="width:70px;">
@@ -509,6 +523,23 @@ document.getElementById("b-text-show").addEventListener("click", async () => {
 document.getElementById("b-text-clear").addEventListener("click", async () => {
   if (await send("text_clear")) toast("Message retiré");
 });
+
+async function funAdmin(a, extra) {
+  const params = new URLSearchParams({ a, p: ADMIN_PASS, ...(extra || {}) });
+  try {
+    const res = await fetch(`${SERVER_URL}/api/fun-admin?${params}`, { method: "POST" });
+    if (!res.ok) throw new Error();
+    toast("OK");
+  } catch (e) { toast("Erreur (2 choix minimum ?)"); }
+}
+document.getElementById("r-fun-on").onclick = () => funAdmin("react_on");
+document.getElementById("r-fun-off").onclick = () => funAdmin("react_off");
+document.getElementById("r-poll-start").onclick = () => funAdmin("poll_start", {
+  q: document.getElementById("r-poll-q").value,
+  o: document.getElementById("r-poll-o").value.split(",").join("|")
+});
+document.getElementById("r-poll-stop").onclick = () => funAdmin("poll_stop");
+document.getElementById("r-poll-clear").onclick = () => funAdmin("poll_clear");
 </script>
 </body>
 </html>
