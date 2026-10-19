@@ -217,6 +217,74 @@ app.post("/api/moderation", (req, res) => {
   res.json({ moderation: moderationEnabled });
 });
 
+// --- Participation du public : emojis, vote, applaudimètre (aucun texte libre) ---
+const FUN_EMOJIS = ["❤️", "😂", "🔥", "👏", "🎉", "😍", "🍺", "🤘"];
+let reactionsOn = true;
+let reactionSeq = 0;
+let reactionLog = [];            // { id, e, t } : les 150 dernières réactions
+let poll = null;                 // { id, question, options:[...], votes:[...], open }
+let pollSeq = 0;
+const pollVoters = new Map();    // guestId -> index du choix
+const reactRate = new Map();     // guestId -> { n, t } (anti-spam : 12 taps / seconde max)
+
+app.get("/api/fun", (req, res) => {
+  res.json({ reactionsOn, emojis: FUN_EMOJIS, poll });
+});
+
+app.post("/api/react", (req, res) => {
+  if (!reactionsOn) return res.json({ ok: false, off: true });
+  const id = String(req.query.id || "").slice(0, 40);
+  const e = String(req.query.e || "");
+  const n = Math.min(Math.max(parseInt(req.query.n, 10) || 1, 1), 12);
+  if (!id || !FUN_EMOJIS.includes(e)) return res.status(400).json({ ok: false });
+  const now = Date.now();
+  const r = reactRate.get(id) || { n: 0, t: now };
+  if (now - r.t > 1000) { r.n = 0; r.t = now; }
+  if (r.n + n > 12) return res.json({ ok: false, slow: true });
+  r.n += n; reactRate.set(id, r);
+  for (let i = 0; i < n; i++) reactionLog.push({ id: ++reactionSeq, e, t: now });
+  if (reactionLog.length > 150) reactionLog = reactionLog.slice(-150);
+  res.json({ ok: true });
+});
+
+// L'écran récupère les nouvelles réactions et l'état du vote
+app.get("/api/fun-feed", (req, res) => {
+  const after = parseInt(req.query.after, 10) || 0;
+  res.json({ last: reactionSeq, reactionsOn, reactions: reactionLog.filter(r => r.id > after), poll });
+});
+
+app.post("/api/vote", (req, res) => {
+  const id = String(req.query.id || "").slice(0, 40);
+  const i = parseInt(req.query.i, 10);
+  if (!poll || !poll.open || !id || !(i >= 0 && i < poll.options.length)) return res.status(400).json({ ok: false });
+  if (pollVoters.has(id)) poll.votes[pollVoters.get(id)]--;
+  pollVoters.set(id, i);
+  poll.votes[i]++;
+  res.json({ ok: true, mine: i });
+});
+
+app.get("/api/my-vote", (req, res) => {
+  const id = String(req.query.id || "");
+  res.json({ pollId: poll ? poll.id : 0, mine: pollVoters.has(id) ? pollVoters.get(id) : -1 });
+});
+
+app.post("/api/fun-admin", (req, res) => {
+  if (!isAdmin(req)) return res.status(401).json({ error: "Non autorisé" });
+  const a = String(req.query.a || "");
+  if (a === "react_on") reactionsOn = true;
+  else if (a === "react_off") reactionsOn = false;
+  else if (a === "poll_start") {
+    const q = String(req.query.q || "").slice(0, 60);
+    const opts = String(req.query.o || "").split("|").map(x => x.trim().slice(0, 20)).filter(Boolean).slice(0, 4);
+    if (opts.length < 2) return res.status(400).json({ error: "2 choix minimum" });
+    pollVoters.clear();
+    poll = { id: ++pollSeq, question: q, options: opts, votes: opts.map(() => 0), open: true };
+  }
+  else if (a === "poll_stop" && poll) poll.open = false;
+  else if (a === "poll_clear") { poll = null; pollVoters.clear(); }
+  res.json({ ok: true, reactionsOn, poll });
+});
+
 app.get("/", (req, res) => {
   res.send("Photobooth server actif.");
 });
