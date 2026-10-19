@@ -25,6 +25,8 @@
   #fun-meter { position: absolute; left: 460px; bottom: 0; width: 1844px; height: 22px; background: rgba(0,0,0,0.55); z-index: 28; opacity: 0; transition: opacity 0.6s; pointer-events: none; }
   #fun-meter .fill { height: 100%; width: 0; background: linear-gradient(90deg, #34c759, #ffd60a, #ff3b30); transition: width 0.3s; }
   #fun-meter .tag { position: absolute; left: 14px; top: 0; line-height: 22px; font-size: 15px; font-weight: 900; letter-spacing: 3px; color: #fff; text-shadow: 0 0 6px #000; z-index: 1; }
+  #stage.fun-hold #photo-zone, #stage.fun-hold #idle-text, #stage.fun-hold #ticker, #stage.fun-hold #announce,
+  #stage.fun-hold #winner-layer, #stage.fun-hold #logo-full { visibility: hidden !important; }
   `;
   document.head.appendChild(css);
 
@@ -33,6 +35,23 @@
   const meter = document.createElement("div"); meter.id = "fun-meter";
   meter.innerHTML = '<div class="tag">🔥 AMBIANCE</div><div class="fill"></div>';
   stage.appendChild(pollEl); stage.appendChild(layer); stage.appendChild(meter);
+
+  // Pendant un vote : photos en attente (rien de nouveau n'est diffusé), textes d'ambiance, bandeaux et annonces masqués,
+  // et le libellé sous le QR code devient « Vote ».
+  let holdOn = false, labelBefore = "";
+  const origProcessQueue = processQueue;
+  processQueue = function () { if (!holdOn) origProcessQueue(); };
+  function setHold(on) {
+    if (on === holdOn) return;
+    holdOn = on;
+    stage.classList.toggle("fun-hold", on);
+    const lab = document.getElementById("qr-label");
+    if (lab) {
+      if (on) { labelBefore = lab.textContent; lab.textContent = "Vote"; }
+      else lab.textContent = labelBefore || "Photobooth";
+    }
+    if (!on) processQueue();
+  }
 
   let lastId = -1, recent = [], lastActivity = 0, reactionsOn = true, lastPoll = "";
 
@@ -53,6 +72,7 @@
     const j = JSON.stringify(p);
     if (j === lastPoll) return;
     lastPoll = j;
+    setHold(!!p);
     if (!p) { pollEl.style.display = "none"; return; }
     const total = p.votes.reduce((a, b) => a + b, 0);
     const max = Math.max.apply(null, p.votes);
