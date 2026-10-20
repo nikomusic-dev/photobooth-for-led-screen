@@ -119,6 +119,65 @@ async function refresh() {
 }
 refresh();
 setInterval(refresh, 2000);
+
+// --- Trophée du tirage au sort : s'affiche aussi sur cette page si la photo de ce téléphone a gagné ---
+let photoGuestId = "";
+try { photoGuestId = localStorage.getItem("photobooth-guest-id") || ""; } catch (e) {}
+function showWinnerScreen(w) {
+  let seen = "";
+  try { seen = localStorage.getItem("photobooth-win-seen") || ""; } catch (e) {}
+  if (seen === String(w.t)) return;
+  try { localStorage.setItem("photobooth-win-seen", String(w.t)); } catch (e) {}
+  const el = document.createElement("div");
+  el.style.cssText = "position:fixed;top:0;left:0;right:0;bottom:0;z-index:200;background:radial-gradient(circle at 50% 35%, #5a189a 0%, #0a0a0a 75%);display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:30px;";
+  el.innerHTML = '<div style="font-size:110px;line-height:1;">🏆</div>' +
+    '<h2 style="font-size:30px;margin:18px 0 10px;color:#ffd60a;text-transform:none;letter-spacing:0;">Tu as gagné !</h2>' +
+    '<p style="font-size:16px;color:#ddd;max-width:320px;line-height:1.5;">' + (w.kind === "race" ? "Tu as remporté la course du mini-jeu 🏁" : "Ta photo a été tirée au sort sur le grand écran 🎉") + '</p>';
+  if (w.prize) {
+    const prize = document.createElement("div");
+    prize.style.cssText = "margin-top:18px;background:#ff4d8d;color:#fff;font-weight:800;font-size:20px;padding:14px 22px;border-radius:16px;max-width:340px;";
+    prize.textContent = "🎁 " + w.prize;
+    const hint = document.createElement("p");
+    hint.style.cssText = "margin-top:12px;font-size:14px;color:#ffd60a;";
+    hint.textContent = "Montre cet écran au bar !";
+    el.append(prize, hint);
+  }
+  const btn = document.createElement("button");
+  btn.textContent = "Fermer";
+  btn.style.cssText = "margin-top:28px;background:#ff4d8d;color:#fff;border:none;border-radius:50px;padding:16px 28px;font-size:16px;font-weight:600;";
+  btn.addEventListener("click", () => el.remove());
+  el.appendChild(btn);
+  document.body.appendChild(el);
+  try { if (navigator.vibrate) navigator.vibrate([200, 100, 200]); } catch (e) {}
+}
+function checkWinner() {
+  if (!photoGuestId) return;
+  fetch(`${SERVER_URL}/api/guest-status?id=${encodeURIComponent(photoGuestId)}`).then(r => r.json()).then(d => {
+    if (d.winner) showWinnerScreen(d.winner);
+    checkGame(d.game);
+  }).catch(() => {});
+}
+checkWinner();
+setInterval(checkWinner, 5000);
+
+// --- Mini-jeu : rappel pour s'inscrire, et retour automatique sur la page photo si ce téléphone est tiré au sort ---
+function checkGame(phase) {
+  let pill = document.getElementById("game-pill");
+  if (!pill) {
+    pill = document.createElement("a");
+    pill.id = "game-pill";
+    pill.href = "guest.html";
+    pill.textContent = "🏁 Mini-jeu : inscris-toi sur la page photo !";
+    pill.style.cssText = "display:none;position:fixed;left:50%;bottom:16px;transform:translateX(-50%);z-index:70;background:#ffd60a;color:#000;font-weight:800;font-size:15px;padding:12px 18px;border-radius:30px;text-decoration:none;white-space:nowrap;";
+    document.body.appendChild(pill);
+  }
+  pill.style.display = phase === "signup" ? "block" : "none";
+  if (phase === "countdown" || phase === "race") {
+    fetch(`${SERVER_URL}/api/game?id=${encodeURIComponent(photoGuestId)}`).then(r => r.json()).then(g => {
+      if (g.me && g.me.player >= 0) window.location.href = "guest.html";
+    }).catch(() => {});
+  }
+}
 </script>
 </body>
 </html>
