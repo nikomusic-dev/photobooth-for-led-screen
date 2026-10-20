@@ -84,7 +84,7 @@
   .polaroid {
     position: absolute;
     background: white;
-    padding: 10px 10px 40px;
+    padding: 10px 10px 62px;
     border-radius: 2px;
     box-shadow: 0 8px 24px rgba(0,0,0,0.5);
     width: 290px;
@@ -92,13 +92,13 @@
   }
   .polaroid img {
     width: 100%;
-    height: 250px;
+    height: 236px;
     object-fit: cover;
     display: block;
   }
   .polaroid .caption {
     font-family: 'Comic Sans MS', cursive, sans-serif;
-    font-size: 17px;
+    font-size: 36px;
     color: #333;
     text-align: center;
     margin-top: 8px;
@@ -109,15 +109,6 @@
   }
   .polaroid.leaving {
     opacity: 0;
-  }
-  #admin-badge {
-    position: absolute;
-    top: 6px;
-    left: 6px;
-    font-size: 10px;
-    color: rgba(255,255,255,0.3);
-    font-family: sans-serif;
-    z-index: 10;
   }
   #effect-layer {
     position: absolute;
@@ -355,9 +346,9 @@
   }
   #winner-layer.show { opacity: 1; }
   #winner-title { font: 900 42px 'Helvetica Neue', Arial, sans-serif; color: #ffd60a; letter-spacing: 6px; text-transform: uppercase; margin-bottom: 10px; }
-  #winner-card { background: #fff; padding: 10px 10px 26px; width: 250px; transform: rotate(-3deg); box-shadow: 0 10px 30px rgba(0,0,0,0.6); }
+  #winner-card { background: #fff; padding: 10px 10px 46px; width: 290px; transform: rotate(-3deg); box-shadow: 0 10px 30px rgba(0,0,0,0.6); }
   #winner-card img { width: 100%; height: 210px; object-fit: cover; display: block; }
-  #winner-caption { font-family: 'Comic Sans MS', cursive, sans-serif; font-size: 20px; color: #333; text-align: center; margin-top: 6px; min-height: 24px; }
+  #winner-caption { font-family: 'Comic Sans MS', cursive, sans-serif; font-size: 32px; color: #333; text-align: center; margin-top: 6px; min-height: 36px; }
 
   #ticker { position: absolute; left: 0; bottom: 0; width: 100%; height: 54px; background: rgba(0,0,0,0.6); overflow: hidden; display: none; align-items: center; z-index: 22; }
   #ticker.show { display: flex; }
@@ -455,11 +446,10 @@ animation: ann-f1-band 1s linear both; pointer-events: none;
   <div id="shown-counter">Diffusées : <b id="shown-count">0</b></div>
   <div id="queue-counter">En attente : <b id="queue-count">0</b></div>
   <div id="guest-counter">Téléphones connectés : <b id="guest-count">0</b></div>
-  <span style="font-size:11px; color:#777; align-self:center;">v13</span>
+  <span style="font-size:11px; color:#777; align-self:center;">v14</span>
 </div>
 <div id="stage-wrap">
 <div id="stage">
-  <div id="admin-badge">ADMIN</div>
   <div id="fx-layer"></div>
   <div id="effect-layer"></div>
   <div id="strobe-layer"></div>
@@ -863,6 +853,8 @@ function showPhoto(photo) {
   const cap = document.createElement("div");
   cap.className = "caption";
   cap.textContent = photo.caption || "";
+  // police la plus grande possible (36 px max), réduite pour les prénoms longs
+  cap.style.fontSize = Math.min(36, Math.max(22, 450 / (cap.textContent.length || 1))) + "px";
   el.appendChild(cap);
   zone.appendChild(el);
 
@@ -1654,7 +1646,6 @@ async function purgeAll(silent) {
 document.getElementById("purge-btn").addEventListener("click", () => {
   if (confirm("Supprimer définitivement TOUTES les photos du serveur ?")) purgeAll(false);
 });
-
 document.getElementById("clear-btn").addEventListener("click", () => {
   activeSlots.forEach((slot, i) => {
     setTimeout(() => {
@@ -1669,7 +1660,53 @@ document.getElementById("clear-btn").addEventListener("click", () => {
     processQueue();
   }, activeSlots.length * 80 + 550);
 });
+
+// --- Téléphones suspendus (textes bloqués répétés) : liste + déblocage manuel ---
+(function () {
+  const panel = document.createElement("div");
+  panel.className = "cpanel";
+  panel.id = "suspend-panel";
+  panel.style.display = "none";
+  panel.innerHTML = '<h3>Téléphones suspendus (textes bloqués répétés)</h3><div class="line" id="suspend-list"></div>';
+  document.getElementById("panels").prepend(panel);
+})();
+async function fetchSuspended() {
+  try {
+    const res = await fetch(`${SERVER_URL}/api/suspended?p=${encodeURIComponent(ADMIN_PASS)}`);
+    const data = await res.json();
+    renderSuspended(data.suspended || []);
+  } catch (e) {}
+}
+function renderSuspended(list) {
+  const panel = document.getElementById("suspend-panel");
+  const box = document.getElementById("suspend-list");
+  panel.style.display = list.length ? "flex" : "none";
+  box.innerHTML = "";
+  list.forEach(s => {
+    const left = Math.max(0, Math.ceil((s.until - Date.now()) / 1000));
+    const m = Math.floor(left / 60), sec = left % 60;
+    const wrap = document.createElement("span");
+    wrap.className = "chip";
+    const label = document.createElement("button");
+    label.textContent = `Tél. ...${s.guestId.slice(-5)} (${m}:${String(sec).padStart(2, "0")})`;
+    label.disabled = true;
+    const unblock = document.createElement("button");
+    unblock.className = "chip-x";
+    unblock.textContent = "Débloquer";
+    unblock.addEventListener("click", async () => {
+      try {
+        await fetch(`${SERVER_URL}/api/unsuspend?id=${encodeURIComponent(s.guestId)}&p=${encodeURIComponent(ADMIN_PASS)}`, { method: "POST" });
+        fetchSuspended();
+      } catch (e) {}
+    });
+    wrap.append(label, unblock);
+    box.appendChild(wrap);
+  });
+}
+setInterval(fetchSuspended, 5000);
+fetchSuspended();
 </script>
 <script src="fun.js"></script>
+<script src="live.js"></script>
 </body>
 </html>
