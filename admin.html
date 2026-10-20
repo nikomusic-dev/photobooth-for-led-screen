@@ -347,8 +347,8 @@
   #winner-layer.show { opacity: 1; }
   #winner-title { font: 900 42px 'Helvetica Neue', Arial, sans-serif; color: #ffd60a; letter-spacing: 6px; text-transform: uppercase; margin-bottom: 6px; white-space: nowrap; flex: none; }
   #winner-card { background: #fff; padding: 8px 8px 8px; width: 290px; flex: none; box-sizing: content-box; transform: rotate(-3deg); box-shadow: 0 10px 30px rgba(0,0,0,0.6); }
-  #winner-card img { width: 100%; height: 150px; object-fit: cover; display: block; }
-  #winner-caption { font-family: 'Comic Sans MS', cursive, sans-serif; font-size: 32px; line-height: 1.1; color: #333; text-align: center; margin-top: 6px; height: 78px; overflow: hidden; display: flex; align-items: center; justify-content: center; word-break: break-word; overflow-wrap: anywhere; }
+  #winner-card img { width: 100%; height: 215px; object-fit: cover; display: block; }
+  #winner-caption { font-family: 'Comic Sans MS', cursive, sans-serif; font-size: 32px; line-height: 1.1; color: #333; text-align: center; margin-top: 4px; height: 44px; overflow: hidden; display: flex; align-items: center; justify-content: center; word-break: break-word; overflow-wrap: anywhere; }
 
   #ticker { position: absolute; left: 0; bottom: 0; width: 100%; height: 54px; background: rgba(0,0,0,0.6); overflow: hidden; display: none; align-items: center; z-index: 22; }
   #ticker.show { display: flex; }
@@ -711,7 +711,7 @@ seenIds.add(p.id);
 allPhotos.push(p);
 checkCelebrate();
 if (approvalMode) pendingApproval.push(p);
-else if (!isPaused) photoQueue.push(p);
+else photoQueue.push(p);
       }
     });
     document.getElementById("photo-count").textContent = allPhotos.length;
@@ -1760,6 +1760,7 @@ drawWinner = function (silent) {
   layer.classList.add("show");
   card.style.display = "none";
   reel.classList.add("show");
+  $("winner-pointer").style.display = "";
   const winner = pool[Math.floor(Math.random() * pool.length)];
   const ITEM_W = 166;
   const N = 60;
@@ -1787,6 +1788,7 @@ drawWinner = function (silent) {
     track.style.transform = `translateX(${x}px)`;
     if (t < 1) { winnerSpin = requestAnimationFrame(frame); return; }
     reel.classList.remove("show");
+    $("winner-pointer").style.display = "none";
     card.style.display = "";
     img.src = winner.url;
       fitWinnerCaption(cap, winner.caption);
@@ -1797,8 +1799,16 @@ drawWinner = function (silent) {
   }
   winnerSpin = requestAnimationFrame(frame);
 };
+
+// Pause : les photos reçues pendant la pause attendent dans la file, puis passent dans l'ordre à la reprise
+(function () {
+  const orig = window.processQueue;
+  window.processQueue = function () { if (isPaused) return; return orig.apply(this, arguments); };
+  document.getElementById("pause-btn").addEventListener("click", () => { if (!isPaused) processQueue(); });
+})();
 </script>
 <script src="fun.js"></script>
 <script src="live.js"></script>
+<script src="minijeu.js"></script>
 </body>
 </html>
