@@ -34,10 +34,10 @@ const upload = multer({
   limits: { fileSize: 8 * 1024 * 1024 } // 8 Mo max par photo
 });
 
-function uploadToCloudinary(buffer, folder) {
+function uploadToCloudinary(buffer, folder, guestId) {
   return new Promise((resolve, reject) => {
     const stream = cloudinary.uploader.upload_stream(
-      { folder, resource_type: "image", format: "jpg" },
+      { folder, resource_type: "image", format: "jpg", context: { guestId: guestId || "" } },
       (err, result) => (err ? reject(err) : resolve(result))
     );
     stream.end(buffer);
@@ -81,23 +81,96 @@ function isCaptionAllowed(caption) {
   return !BLOCKED_SUBSTR.some(s => compact.includes(s));
 }
 
+// --- Suspension d'un téléphone après trop de tentatives bloquées (insultes répétées) ---
+const BLOCK_THRESHOLD = 3;       // nombre de tentatives bloquées avant suspension
+const BLOCK_WINDOW_MS = 15 * 60 * 1000;  // les tentatives trop anciennes ne comptent plus
+const SUSPEND_MS = 15 * 60 * 1000;       // durée de la suspension d'envoi
+const blockedAttempts = new Map();  // guestId -> [timestamps des tentatives bloquées]
+const suspendedGuests = new Map();  // guestId -> timestamp de fin de suspension
+let staffAlerts = [];                // alertes à afficher côté admin/remote/régie
+let staffAlertSeq = 0;
+
+function isSuspended(guestId) {
+  const until = suspendedGuests.get(guestId);
+  if (!until) return false;
+  if (Date.now() > until) { suspendedGuests.delete(guestId); return false; }
+  return until;
+}
+
+function registerBlockedAttempt(guestId) {
+  if (!guestId) return;
+  const now = Date.now();
+  let list = (blockedAttempts.get(guestId) || []).filter(t => now - t < BLOCK_WINDOW_MS);
+  list.push(now);
+  blockedAttempts.set(guestId, list);
+  if (list.length >= BLOCK_THRESHOLD) {
+    const until = now + SUSPEND_MS;
+    suspendedGuests.set(guestId, until);
+    blockedAttempts.delete(guestId);
+    staffAlerts.push({ id: ++staffAlertSeq, guestId, t: now, until });
+    if (staffAlerts.length > 50) staffAlerts = staffAlerts.slice(-50);
+  }
+}
+
+// Le téléphone vérifie régulièrement s'il est suspendu (et jusqu'à quand)
+app.get("/api/guest-status", (req, res) => {
+  const guestId = String(req.query.id || "").slice(0, 60);
+  const until = isSuspended(guestId);
+  res.json({ suspended: !!until, until: until || null });
+});
+
+// Le staff (admin/remote/régie) récupère les alertes de suspension
+app.get("/api/staff-alerts", (req, res) => {
+  if (!isAdmin(req)) return res.status(401).json({ error: "Non autorisé" });
+  const after = parseInt(req.query.after, 10) || 0;
+  res.json({ last: staffAlertSeq, alerts: staffAlerts.filter(a => a.id > after) });
+});
+
+// Liste des téléphones actuellement suspendus (admin / régie : déblocage manuel possible)
+app.get("/api/suspended", (req, res) => {
+  if (!isAdmin(req)) return res.status(401).json({ error: "Non autorisé" });
+  const now = Date.now();
+  const list = [];
+  for (const [guestId, until] of suspendedGuests) {
+    if (until > now) list.push({ guestId, until });
+    else suspendedGuests.delete(guestId);
+  }
+  res.json({ suspended: list });
+});
+
+// Débloque manuellement un téléphone avant la fin des 15 minutes
+app.post("/api/unsuspend", (req, res) => {
+  if (!isAdmin(req)) return res.status(401).json({ error: "Non autorisé" });
+  const guestId = String(req.query.id || "");
+  suspendedGuests.delete(guestId);
+  blockedAttempts.delete(guestId);
+  res.json({ success: true });
+});
+
 // Réception d'une nouvelle photo depuis le téléphone
 app.post("/api/photos", upload.single("photo"), async (req, res) => {
   if (!req.file) return res.status(400).json({ error: "Aucune photo reçue" });
 
   const caption = (req.body.caption || "").slice(0, 20);
+  const guestId = String(req.body.guestId || "").slice(0, 60);
+  const suspendedUntil = isSuspended(guestId);
+  if (suspendedUntil) {
+    return res.status(403).json({ error: "guest_suspended", until: suspendedUntil });
+  }
   if (moderationEnabled && !isCaptionAllowed(caption)) {
+    registerBlockedAttempt(guestId);
     return res.status(422).json({ error: "caption_blocked" });
   }
   let uploaded;
   try {
-    uploaded = await uploadToCloudinary(req.file.buffer, currentEventFolder());
+    uploaded = await uploadToCloudinary(req.file.buffer, currentEventFolder(), guestId);
   } catch (e) {
     return res.status(502).json({ error: "upload_cloudinary_echoue" });
   }
   const photo = {
     id: uploaded.public_id,
     url: uploaded.secure_url,
+    guestId,
     caption,
     createdAt: Date.now()
   };
@@ -151,9 +224,33 @@ async function listEventPhotos() {
     .expression(`folder:${currentEventFolder()}`)
     .sort_by("created_at", "asc")
     .max_results(500)
+    .with_field("context")
     .execute();
   return result.resources || [];
 }
+
+// Galerie personnelle : uniquement les photos envoyées par ce téléphone précis (filtrées par guestId)
+app.get("/my-gallery", async (req, res) => {
+  const guestId = String(req.query.id || "").slice(0, 60);
+  const files = (await listEventPhotos()).filter(f => f.context && f.context.custom && f.context.custom.guestId === guestId);
+  const thumbs = files.map(f => `<a href="${f.secure_url}" target="_blank"><img src="${f.secure_url}" loading="lazy"></a>`).join("");
+  res.send(`<!DOCTYPE html>
+<html lang="fr"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Mes photos</title>
+<style>
+  body { margin:0; background:#1c1c1e; color:#eee; font-family:-apple-system,Segoe UI,sans-serif; text-align:center; padding:24px; }
+  h1 { font-size:22px; margin:0 0 6px; }
+  p { color:#999; margin:0 0 20px; }
+  .grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(140px,1fr)); gap:10px; margin-top:28px; }
+  .grid img { width:100%; aspect-ratio:1; object-fit:cover; border-radius:6px; }
+  .grid a { display:block; }
+</style></head><body>
+<h1>Mes photos</h1>
+<p>${files.length} photo(s) · touche une photo pour l'enregistrer</p>
+${files.length ? "" : "<p>Aucune photo trouvée pour l'instant.</p>"}
+<div class="grid">${thumbs}</div>
+</body></html>`);
+});
 
 app.get("/gallery", async (req, res) => {
   const files = await listEventPhotos();
