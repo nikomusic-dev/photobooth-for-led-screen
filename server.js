@@ -232,7 +232,7 @@ async function listEventPhotos() {
 // Galerie personnelle : uniquement les photos envoyées par ce téléphone précis (filtrées par guestId)
 app.get("/my-gallery", async (req, res) => {
   const guestId = String(req.query.id || "").slice(0, 60);
-  const files = (await listEventPhotos()).filter(f => f.context && f.context.custom && f.context.custom.guestId === guestId);
+  const files = (await listEventPhotos()).filter(f => { const ctx = f.context ? (f.context.custom || f.context) : null; return !!guestId && !!ctx && ctx.guestId === guestId; });
   const thumbs = files.map(f => `<a href="${f.secure_url}" target="_blank"><img src="${f.secure_url}" loading="lazy"></a>`).join("");
   res.send(`<!DOCTYPE html>
 <html lang="fr"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1">
