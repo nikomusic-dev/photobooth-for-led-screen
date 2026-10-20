@@ -120,11 +120,25 @@
   #terms li { margin-bottom: 10px; padding-left: 22px; position: relative; }
   #terms li::before { content: "\2022"; color: #ff4d8d; position: absolute; left: 4px; }
   #terms button { margin: 18px 0 30px; }
-  #fun-link { position: fixed; top: 8px; left: 8px; z-index: 60; background: #ff4d8d; color: #fff; text-decoration: none; font-weight: 700; font-size: 13px; padding: 8px 12px; border-radius: 18px; }
+  #suspend-screen {
+    position: fixed; top: 0; left: 0; right: 0; bottom: 0; z-index: 90;
+    background: rgba(20,0,0,0.96); display: none; flex-direction: column;
+    align-items: center; justify-content: center; text-align: center; padding: 30px;
+  }
+  #suspend-screen .cross { font-size: 64px; margin-bottom: 14px; }
+  #suspend-screen h2 { font-size: 22px; margin-bottom: 12px; color: #ff6b6b; }
+  #suspend-screen p { font-size: 15px; line-height: 1.5; color: #ddd; max-width: 320px; }
+  #suspend-timer { margin-top: 18px; font-size: 28px; font-weight: 700; color: #ff6b6b; }
+  #suspend-screen .links { margin-top: 24px; display: flex; gap: 12px; }
+  #suspend-screen .links a { background: #ff4d8d; color: #fff; text-decoration: none; font-weight: 700; padding: 12px 20px; border-radius: 24px; font-size: 14px; }
+  #fun-link, #my-photos-link { position: fixed; top: 8px; z-index: 60; background: #ff4d8d; color: #fff; text-decoration: none; font-weight: 700; font-size: 13px; padding: 8px 12px; border-radius: 18px; }
+  #my-photos-link { right: 8px; }
+  #fun-link-old { position: fixed; top: 8px; left: 8px; z-index: 60; background: #ff4d8d; color: #fff; text-decoration: none; font-weight: 700; font-size: 13px; padding: 8px 12px; border-radius: 18px; }
 </style>
 </head>
 <body>
 <a id="fun-link" href="fun.html">🎉 Réagir &amp; voter</a>
+<a id="my-photos-link" href="#">📷 Mes photos</a>
 
 <div id="splash">
   <img src="logo.png" alt="Portland Pub" />
@@ -140,6 +154,7 @@
     <li>Pas de contenu choquant, vulgaire, haineux ou illégal. Les légendes sont filtrées automatiquement et l'équipe peut retirer n'importe quelle photo.</li>
     <li>La légende est facultative : inutile de donner ton nom complet.</li>
     <li>Pas de spam : laisse aussi la place aux autres !</li>
+    <li>Tu pourras retrouver et télécharger tes propres photos à la fin de la soirée grâce au bouton "Mes photos".</li>
     <li>En continuant, tu acceptes ces conditions et l'affichage de ta photo.</li>
   </ul>
   <button id="accept-btn">J'accepte et je continue</button>
@@ -156,6 +171,17 @@
     <div style="width: 50px;"></div>
   </div>
   <div id="status-msg">Place ton visage dans le cadre</div>
+</div>
+
+<div id="suspend-screen">
+  <div class="cross">🚫</div>
+  <h2>Envoi de photos suspendu</h2>
+  <p>Suite à plusieurs textes non autorisés, l'envoi de nouvelles photos est temporairement bloqué sur ce téléphone.</p>
+  <div id="suspend-timer"></div>
+  <div class="links">
+    <a id="suspend-fun-link" href="fun.html">🎉 Réagir &amp; voter</a>
+    <a id="suspend-gallery-link" href="#" target="_blank">📷 Mes photos</a>
+  </div>
 </div>
 
 <div id="preview-view">
@@ -202,7 +228,47 @@ document.getElementById("accept-btn").addEventListener("click", () => {
 });
 
 // Signal de présence toutes les 10 s (permet à l'admin d'estimer le nombre de téléphones connectés)
-const guestId = Math.random().toString(36).slice(2) + Date.now().toString(36);
+// Identifiant du téléphone : on le garde en mémoire du navigateur pour le retrouver même après fermeture de la page
+let guestId = localStorage.getItem("photobooth-guest-id");
+if (!guestId) {
+  guestId = Math.random().toString(36).slice(2) + Date.now().toString(36);
+  localStorage.setItem("photobooth-guest-id", guestId);
+}
+document.getElementById("my-photos-link").href = `${SERVER_URL}/my-gallery?id=${guestId}`;
+document.getElementById("my-photos-link").target = "_blank";
+document.getElementById("suspend-gallery-link").href = `${SERVER_URL}/my-gallery?id=${guestId}`;
+
+// Vérifie régulièrement si ce téléphone est suspendu d'envoi de photos (après trop de textes bloqués)
+let isSuspendedNow = false;
+let suspendTimerInterval = null;
+function showSuspendScreen(until) {
+  isSuspendedNow = true;
+  document.getElementById("camera-view").style.display = "none";
+  document.getElementById("preview-view").style.display = "none";
+  document.getElementById("suspend-screen").style.display = "flex";
+  clearInterval(suspendTimerInterval);
+  const tick = () => {
+    const left = Math.max(0, Math.ceil((until - Date.now()) / 1000));
+    const m = Math.floor(left / 60), s = left % 60;
+    document.getElementById("suspend-timer").textContent = `${m}:${String(s).padStart(2, "0")}`;
+    if (left <= 0) { clearInterval(suspendTimerInterval); hideSuspendScreen(); }
+  };
+  tick();
+  suspendTimerInterval = setInterval(tick, 1000);
+}
+function hideSuspendScreen() {
+  isSuspendedNow = false;
+  document.getElementById("suspend-screen").style.display = "none";
+  document.getElementById("camera-view").style.display = "flex";
+}
+function checkGuestStatus() {
+  fetch(`${SERVER_URL}/api/guest-status?id=${guestId}`).then(r => r.json()).then(d => {
+    if (d.suspended) showSuspendScreen(d.until);
+    else if (isSuspendedNow) hideSuspendScreen();
+  }).catch(() => {});
+}
+checkGuestStatus();
+setInterval(checkGuestStatus, 5000);
 let moderationOn = true;
 function pingServer() {
   fetch(`${SERVER_URL}/api/ping?id=${guestId}`)
@@ -382,6 +448,7 @@ document.getElementById("send-btn").addEventListener("click", async () => {
   const formData = new FormData();
   formData.append("photo", capturedBlob, "photo.jpg");
   formData.append("caption", caption);
+  formData.append("guestId", guestId);
 
   try {
     const res = await fetch(`${SERVER_URL}/api/photos`, {
@@ -391,6 +458,11 @@ document.getElementById("send-btn").addEventListener("click", async () => {
     if (res.status === 422) {
       status2.textContent = "Ce texte n'est pas autorisé. Modifie ta légende !";
       sendBtn.disabled = false;
+      return;
+    }
+    if (res.status === 403) {
+      const data = await res.json().catch(() => ({}));
+      checkGuestStatus();
       return;
     }
     if (!res.ok) throw new Error("Erreur serveur");
