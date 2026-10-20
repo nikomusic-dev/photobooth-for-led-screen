@@ -12,7 +12,7 @@
   css.textContent = `
     #live-layer { position: absolute; left: 384px; top: 0; width: 1920px; height: 100%; display: flex; align-items: center; justify-content: center; z-index: 29; opacity: 0; pointer-events: none; transition: opacity 0.5s ease; }
     #live-layer.show { opacity: 1; }
-    #live-video { height: calc(100% - 8px); aspect-ratio: 16 / 9; background: #000; object-fit: contain; border-radius: 6px; box-shadow: 0 0 0 4px #fff, 0 10px 40px rgba(0,0,0,0.7); }
+    #live-video { height: calc(100% - 8px); aspect-ratio: 21 / 9; background: #000; object-fit: cover; border-radius: 6px; box-shadow: 0 0 0 4px #fff, 0 10px 40px rgba(0,0,0,0.7); }
     body.live-on #announce, body.live-on #ticker, body.live-on #winner-layer, body.live-on #logo-full,
     body.live-on #idle-text, body.live-on #photo-zone, body.live-on #effect-layer { opacity: 0 !important; visibility: hidden !important; }
     .lamp-pill { display: flex; align-items: center; gap: 10px; background: #19191b; border: 1px solid #0a0a0a; border-radius: 5px; padding: 10px 16px; box-shadow: inset 0 1px 3px rgba(0,0,0,0.6); text-transform: uppercase; font-size: 11px; letter-spacing: 0.4px; color: #999; }
