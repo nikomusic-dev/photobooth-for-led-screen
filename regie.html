@@ -58,6 +58,7 @@
 <body>
 
 <div id="login">
+  <img id="login-logo" style="max-width:200px; max-height:80px; display:none;" />
   <h2>Régie PC</h2>
   <input id="user-input" placeholder="Identifiant" autocapitalize="off" />
   <input id="pass-input" type="password" placeholder="Mot de passe" />
@@ -154,6 +155,11 @@
         <input type="text" id="r-celebrate-n" inputmode="numeric" value="50" style="width:70px;">
         <button class="btn" id="r-celebrate-save">Célébrer toutes les N photos</button>
       </div>
+      <h3 style="margin-top:14px; color:#999;">Lot du tirage au sort</h3>
+      <input type="text" id="r-prize-text" maxlength="60" placeholder="Ex : Un shooter offert !">
+      <div class="row">
+        <button class="btn" id="r-prize-toggle">Lot : OFF</button>
+      </div>
       <div id="r-pending-panel" style="display:none; margin-top:14px;">
         <h3>Photos à valider</h3>
         <div id="r-pending"></div>
@@ -216,6 +222,10 @@ const SERVER_URL = "https://niko-photobooth-for-led-screen.onrender.com";
 const ADMIN_USER = "NIKO";
 const ADMIN_PASS = "27012022";
 const RID = Math.random().toString(36).slice(2, 10);
+
+fetch(`${SERVER_URL}/api/logo`).then(r => r.json()).then(d => {
+  if (d.logo) { const img = document.getElementById("login-logo"); img.src = d.logo; img.style.display = "block"; }
+}).catch(() => {});
 
 function toast(msg) {
   const t = document.getElementById("toast");
@@ -625,6 +635,38 @@ function renderSuspended(list) {
 }
 setInterval(pollSuspended, 5000);
 pollSuspended();
+
+// Lot du tirage au sort : affiché sur le téléphone du gagnant quand il est activé
+let prizeOn = false;
+function renderPrize() { setActive("r-prize-toggle", prizeOn, "Lot : ON", "Lot : OFF"); }
+async function savePrize(params) {
+  const q = new URLSearchParams({ p: ADMIN_PASS, ...params });
+  const d = await (await fetch(`${SERVER_URL}/api/prize?${q}`, { method: "POST" })).json();
+  prizeOn = !!d.on;
+  renderPrize();
+}
+async function loadPrize() {
+  try {
+    const d = await (await fetch(`${SERVER_URL}/api/prize?p=${encodeURIComponent(ADMIN_PASS)}`)).json();
+    prizeOn = !!d.on;
+    const input = document.getElementById("r-prize-text");
+    if (document.activeElement !== input) input.value = d.text || "";
+    renderPrize();
+  } catch (e) {}
+}
+document.getElementById("r-prize-toggle").addEventListener("click", async () => {
+  const text = document.getElementById("r-prize-text").value.trim();
+  if (!prizeOn && !text) { toast("Écris d'abord le lot"); return; }
+  try {
+    await savePrize({ on: prizeOn ? "0" : "1", text });
+    toast(prizeOn ? "Lot activé" : "Lot désactivé");
+  } catch (e) { toast("Erreur d'envoi"); }
+});
+document.getElementById("r-prize-text").addEventListener("change", async () => {
+  try { await savePrize({ text: document.getElementById("r-prize-text").value.trim() }); toast("Lot enregistré"); } catch (e) {}
+});
+setInterval(loadPrize, 5000);
+loadPrize();
 </script>
 </body>
 </html>
