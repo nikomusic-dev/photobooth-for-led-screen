@@ -37,6 +37,20 @@
   .pcard .btn { flex: 0 0 auto; padding: 14px 16px; }
   #toast { position: fixed; left: 50%; bottom: 24px; transform: translateX(-50%); background: #000; color: #fff; padding: 8px 16px; border-radius: 20px; font-size: 13px; opacity: 0; transition: opacity 0.2s; pointer-events: none; }
   #toast.show { opacity: 0.9; }
+  #live-full { display: none; position: fixed; left: 0; top: 0; right: 0; bottom: 0; background: #000; z-index: 100; }
+  #live-full video { width: 100%; height: 100%; object-fit: contain; background: #000; }
+  #live-bar { position: absolute; left: 10px; top: 10px; display: flex; gap: 8px; flex-wrap: wrap; z-index: 2; }
+  .lamp-wrap { display: flex; align-items: center; gap: 8px; background: rgba(0,0,0,0.6); border-radius: 20px; padding: 7px 14px 7px 10px; font-size: 14px; font-weight: 700; color: #fff; text-transform: none; letter-spacing: 0; }
+  .lamp { width: 18px; height: 18px; border-radius: 50%; background: #666; display: inline-block; flex: 0 0 auto; }
+  .lamp.green { background: #34c759; box-shadow: 0 0 12px #34c759; }
+  .lamp.orange { background: #ff9f0a; box-shadow: 0 0 12px #ff9f0a; }
+  .lamp.red { background: #ff453a; box-shadow: 0 0 12px #ff453a; }
+  #live-stop-big { position: absolute; right: max(14px, env(safe-area-inset-right)); bottom: max(14px, env(safe-area-inset-bottom)); z-index: 2; background: #d62d20; color: #fff; border: 2px solid #fff; border-radius: 12px; padding: 18px 26px; font-size: 18px; font-weight: 800; letter-spacing: 0.5px; text-transform: uppercase; }
+  #live-stop-big:active { background: #9c1f15; }
+  #live-rotate { display: none; position: absolute; left: 0; right: 0; top: 40%; text-align: center; color: #fff; font-size: 20px; font-weight: 700; text-transform: none; background: rgba(0,0,0,0.55); padding: 14px; z-index: 1; }
+  @media (orientation: portrait) { #live-rotate { display: block; } }
+  #live-panel .lamp-wrap { background: #19191b; display: inline-flex; margin: 8px 0; }
+  #live-status { margin: 4px 0 8px; text-transform: none; font-size: 13px; color: #ccc; }
 </style>
 </head>
 <body>
@@ -51,6 +65,7 @@
 
 <div id="remote">
   <div id="status"><span id="dot"></span><span id="status-text">Connexion à la régie...</span></div>
+  <div id="suspend-banner" style="display:none; background:#4a0f0f; color:#ff9a9a; border-radius:8px; padding:10px 12px; font-size:12px; margin-bottom:10px;"></div>
   <div id="counters">
     <div class="counter"><b id="c-received">0</b>Reçues</div>
     <div class="counter"><b id="c-shown">0</b>Diffusées</div>
@@ -68,6 +83,12 @@
     <a class="btn wide" id="r-gallery" target="_blank" style="text-decoration:none; text-align:center; display:block;">Photos : galerie / tout télécharger</a>
     <button class="btn wide" id="b-moderation">Modération : ON</button>
     <button class="btn wide danger" id="b-purge">Purger les photos</button>
+  </div>
+  <div class="panel" id="live-panel">
+    Direct caméra (écran géant)
+    <div><span class="lamp-wrap"><span class="lamp" id="lamp-panel"></span><span id="lamp-panel-txt">Direct arrêté</span></span></div>
+    <div id="live-status">Prêt. Tiens le téléphone en paysage, dans le sens que tu veux.</div>
+    <div class="row"><button class="btn" id="live-btn">Démarrer le direct</button></div>
   </div>
   <div class="panel">
     Durée d'affichage : <b id="dur-value">30</b> s
@@ -171,12 +192,23 @@
     </div>
   </div>
 </div>
+<div id="live-full">
+  <video id="live-full-video" autoplay muted playsinline></video>
+  <div id="live-bar">
+    <div class="lamp-wrap"><span class="lamp" id="lamp-live"></span><span id="lamp-live-txt">Direct arrêté</span></div>
+    <div class="lamp-wrap"><span class="lamp" id="lamp-screen"></span><span id="lamp-screen-txt">Écran ?</span></div>
+  </div>
+  <div id="live-rotate">Tourne le téléphone en paysage</div>
+  <button id="live-stop-big">Arrêter le direct</button>
+</div>
 <div id="toast"></div>
 
 <script>
 const SERVER_URL = "https://niko-photobooth-for-led-screen.onrender.com";
 const ADMIN_USER = "NIKO";
 const ADMIN_PASS = "27012022";
+const RID = Math.random().toString(36).slice(2, 10);
+var adminOnline = false;
 
 function toast(msg) {
   const t = document.getElementById("toast");
@@ -206,10 +238,12 @@ function setActive(id, on, labelOn, labelOff) {
 
 async function pollState() {
   try {
-    const res = await fetch(`${SERVER_URL}/api/state?p=${encodeURIComponent(ADMIN_PASS)}`);
+    const res = await fetch(`${SERVER_URL}/api/state?p=${encodeURIComponent(ADMIN_PASS)}&r=${RID}&k=remote`);
     const data = await res.json();
     const s = data.state;
     const online = s && (data.now - s.updatedAt) < 8000;
+    adminOnline = !!online;
+    screenLamp();
     document.getElementById("dot").classList.toggle("on", !!online);
     document.getElementById("status-text").textContent = online ? "PC de la régie en ligne" : "PC de la régie hors ligne";
     setActive("b-moderation", data.moderation === false, "Modération : OFF", "Modération : ON");
@@ -234,6 +268,7 @@ function showRemote() {
   document.getElementById("remote").style.display = "block";
   pollState();
   setInterval(pollState, 1500);
+  pollSuspended();
 }
 
 document.getElementById("login-btn").addEventListener("click", () => {
@@ -248,7 +283,6 @@ document.getElementById("login-btn").addEventListener("click", () => {
 });
 try { if (localStorage.getItem("remote-ok") === "1") showRemote(); } catch (e) {}
 
-// Boutons simples
 document.querySelectorAll("[data-cmd]").forEach(btn => {
   btn.addEventListener("click", async () => {
     if (await send(btn.dataset.cmd)) toast("Envoyé");
@@ -256,13 +290,11 @@ document.querySelectorAll("[data-cmd]").forEach(btn => {
   });
 });
 
-// Purge (avec confirmation sur le téléphone)
 document.getElementById("b-purge").addEventListener("click", async () => {
   if (!confirm("Supprimer définitivement TOUTES les photos du serveur ?")) return;
   if (await send("purge")) toast("Photos supprimées");
 });
 
-// ===== Fonctions avancées =====
 function mk(tag, cls, text) {
   const e = document.createElement(tag);
   if (cls) e.className = cls;
@@ -302,7 +334,6 @@ let promosKey = "", themesKey = "", pendingKey = "", fxKey = "", slidersInit = f
 function renderExtras(s) {
   TOGGLES.forEach(([cmd, label, key]) => setActive("t-" + cmd, s[key], label + " : ON", label + " : OFF"));
 
-  // Promos (la liste vient du PC)
   const pk = JSON.stringify(s.promos || []);
   if (pk !== promosKey) {
     promosKey = pk;
@@ -323,7 +354,6 @@ function renderExtras(s) {
     });
   }
 
-  // Thèmes de fond
   const tk = (s.themes || []).join(",");
   if (tk !== themesKey) {
     themesKey = tk;
@@ -341,7 +371,6 @@ function renderExtras(s) {
   }
   document.querySelectorAll("#r-themes .btn").forEach(b => b.classList.toggle("active", b.dataset.theme === s.theme));
 
-  // Effets de fond
   const fk = (s.fxs || []).join(",");
   if (fk !== fxKey) {
     fxKey = fk;
@@ -359,7 +388,6 @@ function renderExtras(s) {
   }
   document.querySelectorAll("#r-fx .btn").forEach(b => b.classList.toggle("active", b.dataset.fx === s.fx));
 
-  // Curseurs : valeurs du PC reprises une seule fois
   if (!slidersInit && s.speed) {
     slidersInit = true;
     document.getElementById("r-speed").value = s.speed;
@@ -371,7 +399,6 @@ function renderExtras(s) {
     document.getElementById("r-celebrate-n").value = s.celebrateN || 50;
   }
 
-  // Photos à valider (validation manuelle)
   const list = s.pending || [];
   const pend = list.map(p => p.id).join(",");
   if (pend !== pendingKey) {
@@ -399,7 +426,6 @@ function renderExtras(s) {
   document.getElementById("r-pending-panel").style.display = (s.approval || list.length) ? "block" : "none";
 }
 
-// Curseurs ambiance
 const rSpeed = document.getElementById("r-speed");
 const rBright = document.getElementById("r-bright");
 rSpeed.addEventListener("input", () => { document.getElementById("r-speed-val").textContent = rSpeed.value; });
@@ -407,10 +433,8 @@ rSpeed.addEventListener("change", () => send("speed", { value: rSpeed.value }));
 rBright.addEventListener("input", () => { document.getElementById("r-bright-val").textContent = rBright.value; });
 rBright.addEventListener("change", () => send("brightness", { value: rBright.value }));
 
-// Galerie des photos (ouvre la page de téléchargement du serveur)
 document.getElementById("r-gallery").href = `${SERVER_URL}/gallery`;
 
-// Gestion des promos
 document.getElementById("r-promo-add").addEventListener("click", async () => {
   const name = document.getElementById("r-promo-name").value.trim();
   const price = document.getElementById("r-promo-price").value.trim();
@@ -423,14 +447,12 @@ document.getElementById("r-promo-add").addEventListener("click", async () => {
   }
 });
 
-// Dégradé perso
 document.getElementById("r-grad-btn").addEventListener("click", async () => {
   const a = document.getElementById("r-color").value;
   const b = document.getElementById("r-color2").value;
   if (await send("bggrad", { text: a + "," + b })) toast("Dégradé envoyé");
 });
 
-// QR n°2
 document.getElementById("r-qr2-save").addEventListener("click", async () => {
   const url = document.getElementById("r-qr2-url").value.trim();
   const label = document.getElementById("r-qr2-label").value.trim();
@@ -438,18 +460,15 @@ document.getElementById("r-qr2-save").addEventListener("click", async () => {
   if (await send("qr2_set", { text: url + "|" + label })) toast("QR n°2 enregistré");
 });
 
-// Célébrations : tous les N photos
 document.getElementById("r-celebrate-save").addEventListener("click", async () => {
   const n = parseInt(document.getElementById("r-celebrate-n").value, 10) || 50;
   if (await send("celebrate_n", { value: n })) toast("Enregistré : toutes les " + n + " photos");
 });
 
-// Couleur de fond unie
 document.getElementById("r-color-btn").addEventListener("click", async () => {
   if (await send("bgcolor", { text: document.getElementById("r-color").value })) toast("Couleur envoyée");
 });
 
-// Annonces, défilement, compte à rebours
 document.getElementById("r-ann-style").addEventListener("change", async (e) => {
   if (await send("ann_style", { text: e.target.value })) toast("Animation choisie");
 });
@@ -476,7 +495,6 @@ document.getElementById("r-cd-midnight").addEventListener("click", async () => {
   if (await send("countdown", { value: Math.round((t - now) / 1000), text: label })) toast("Compte à rebours lancé");
 });
 
-// Modération ON / OFF
 document.getElementById("b-moderation").addEventListener("click", async () => {
   const wasOn = !document.getElementById("b-moderation").classList.contains("active");
   try {
@@ -488,7 +506,6 @@ document.getElementById("b-moderation").addEventListener("click", async () => {
   setTimeout(pollState, 500);
 });
 
-// Stroboscope : actif seulement tant qu'on maintient le doigt appuyé
 const strobeBtn = document.getElementById("b-strobe");
 let strobeIsOn = false;
 strobeBtn.addEventListener("pointerdown", (e) => {
@@ -507,14 +524,12 @@ function strobeStop() {
 ["pointerup", "pointerleave", "pointercancel"].forEach(ev => strobeBtn.addEventListener(ev, strobeStop));
 strobeBtn.addEventListener("contextmenu", (e) => e.preventDefault());
 
-// Durée d'affichage
 const durSlider = document.getElementById("dur-slider");
 durSlider.addEventListener("input", () => {
   document.getElementById("dur-value").textContent = durSlider.value;
 });
 durSlider.addEventListener("change", () => send("duration", { value: durSlider.value }));
 
-// Message à l'écran
 document.getElementById("b-text-show").addEventListener("click", async () => {
   const v = document.getElementById("text-input").value.trim();
   if (!v) return;
@@ -540,6 +555,189 @@ document.getElementById("r-poll-start").onclick = () => funAdmin("poll_start", {
 });
 document.getElementById("r-poll-stop").onclick = () => funAdmin("poll_stop");
 document.getElementById("r-poll-clear").onclick = () => funAdmin("poll_clear");
+
+// Bandeau persistant : téléphone(s) suspendus suite à des textes bloqués répétés
+async function pollSuspended() {
+  try {
+    const res = await fetch(`${SERVER_URL}/api/suspended?p=${encodeURIComponent(ADMIN_PASS)}`);
+    const data = await res.json();
+    const list = data.suspended || [];
+    const banner = document.getElementById("suspend-banner");
+    if (!list.length) { banner.style.display = "none"; return; }
+    banner.style.display = "block";
+    banner.textContent = list.length === 1
+      ? "⚠️ 1 téléphone suspendu (textes bloqués répétés)"
+      : `⚠️ ${list.length} téléphones suspendus (textes bloqués répétés)`;
+  } catch (e) {}
+}
+setInterval(pollSuspended, 5000);
+
+// ===== Direct caméra (WebRTC) : caméra arrière du téléphone -> écran géant =====
+const LIVE_ICE = [{ urls: "stun:stun.l.google.com:19302" }, { urls: "stun:stun1.l.google.com:19302" }];
+// Si le direct ne se connecte pas sur certains réseaux (4G, Wi-Fi qui bloque), ajouter ici un serveur TURN :
+// { urls: "turn:mon-serveur:3478", username: "...", credential: "..." }
+let live = null;
+const liveBtn = document.getElementById("live-btn");
+const liveStatus = document.getElementById("live-status");
+const liveFull = document.getElementById("live-full");
+const liveVideo = document.getElementById("live-full-video");
+function setLive(msg) { liveStatus.textContent = msg; }
+
+function setLamp(ids, color, txt) {
+  ids.forEach(([lamp, label]) => {
+    const l = document.getElementById(lamp);
+    l.className = "lamp " + color;
+    if (label) document.getElementById(label).textContent = txt;
+  });
+}
+function liveLamp(color, txt) { setLamp([["lamp-live", "lamp-live-txt"], ["lamp-panel", "lamp-panel-txt"]], color, txt); }
+function screenLamp() {
+  setLamp([["lamp-screen", "lamp-screen-txt"]], adminOnline ? "green" : "red", adminOnline ? "Écran connecté" : "Écran hors ligne");
+}
+function liveQuality(lostFraction, rttSeconds, kbps) {
+  if (kbps === 0) return "Image bloquée";
+  if (lostFraction > 0.08) return "Réseau faible (pertes)";
+  if (rttSeconds > 0.8) return "Réseau lent";
+  return "";
+}
+liveLamp("red", "Direct arrêté");
+screenLamp();
+
+function liveQueue(L, to, type, data) {
+  L.out = L.out.then(() => {
+    const params = new URLSearchParams({ to, type, sid: L.sid, p: ADMIN_PASS });
+    return fetch(`${SERVER_URL}/api/live/send?${params}`, { method: "POST", body: data || "" });
+  }).catch(() => {});
+}
+
+async function liveStart() {
+  if (live) return;
+  if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) { setLive("Caméra indisponible : la page doit être ouverte en https."); return; }
+  setLive("Ouverture de la caméra...");
+  liveLamp("orange", "Ouverture de la caméra...");
+  let stream;
+  try {
+    stream = await navigator.mediaDevices.getUserMedia({
+      video: { facingMode: { ideal: "environment" }, width: { ideal: 1280 }, height: { ideal: 720 }, frameRate: { ideal: 24, max: 30 } },
+      audio: false
+    });
+  } catch (e) { setLive("Caméra refusée ou indisponible."); liveLamp("red", "Caméra refusée"); return; }
+  const pc = new RTCPeerConnection({ iceServers: LIVE_ICE });
+  const L = { sid: Date.now().toString(36), pc, stream, out: Promise.resolve(), lastId: 0, busy: false, poll: null, stats: null, wake: null, lost: null, bad: 0, lastBytes: null, lastT: 0, connected: false };
+  live = L;
+  liveVideo.srcObject = stream;
+  liveFull.style.display = "block";
+  liveBtn.classList.add("active");
+  liveBtn.textContent = "Arrêter le direct";
+  try { if (liveFull.requestFullscreen) await liveFull.requestFullscreen({ navigationUI: "hide" }); } catch (e) {}
+  try { if (screen.orientation && screen.orientation.lock) await screen.orientation.lock("landscape"); } catch (e) {}
+  stream.getVideoTracks().forEach(t => { try { t.contentHint = "motion"; } catch (e) {} pc.addTrack(t, stream); });
+  try { if (navigator.wakeLock) L.wake = await navigator.wakeLock.request("screen"); } catch (e) {}
+  pc.onicecandidate = (e) => { if (e.candidate && live === L) liveQueue(L, "admin", "ice", JSON.stringify(e.candidate)); };
+  pc.onconnectionstatechange = () => {
+    if (live !== L) return;
+    const st = pc.connectionState;
+    clearTimeout(L.lost);
+    if (st === "connected") { L.connected = true; setLive("EN DIRECT"); liveLamp("green", "EN DIRECT"); }
+    else if (st === "connecting") { liveLamp("orange", "Connexion à l'écran..."); }
+    else if (st === "failed") { setLive("Connexion impossible (réseau). Réessaie ou change de Wi-Fi / 4G."); liveStop(true, "Connexion impossible"); }
+    else if (st === "disconnected") {
+      setLive("Connexion perdue, reconnexion...");
+      liveLamp("orange", "Connexion perdue...");
+      L.lost = setTimeout(() => { if (live === L) { setLive("Connexion perdue."); liveStop(true, "Connexion perdue"); } }, 10000);
+    }
+  };
+  try {
+    const r = await (await fetch(`${SERVER_URL}/api/live/recv?for=phone&after=0&p=${encodeURIComponent(ADMIN_PASS)}`)).json();
+    L.lastId = r.last;
+    await pc.setLocalDescription(await pc.createOffer());
+    liveQueue(L, "admin", "offer", JSON.stringify(pc.localDescription));
+  } catch (e) { setLive("Serveur injoignable."); liveStop(false, "Serveur injoignable"); return; }
+  setLive("Connexion à l'écran...");
+  liveLamp("orange", "Connexion à l'écran...");
+  L.poll = setInterval(livePoll, 600);
+  L.stats = setInterval(() => liveCheck(L), 2000);
+}
+
+async function liveCheck(L) {
+  if (live !== L || L.pc.connectionState !== "connected") return;
+  try {
+    let lost = 0, rtt = 0, bytes = null;
+    const stats = await L.pc.getStats();
+    stats.forEach(r => {
+      if (r.type === "outbound-rtp" && r.kind === "video") bytes = r.bytesSent;
+      if (r.type === "remote-inbound-rtp" && r.kind === "video") { lost = r.fractionLost || 0; if (r.roundTripTime) rtt = r.roundTripTime; }
+      if (r.type === "candidate-pair" && r.nominated && r.currentRoundTripTime) rtt = Math.max(rtt, r.currentRoundTripTime);
+    });
+    const now = performance.now();
+    const kbps = (L.lastBytes !== null && bytes !== null) ? (bytes - L.lastBytes) * 8 / (now - L.lastT) : null;
+    if (bytes !== null) { L.lastBytes = bytes; L.lastT = now; }
+    if (live !== L) return;
+    const problem = liveQuality(lost, rtt, kbps);
+    L.bad = problem ? L.bad + 1 : 0;
+    if (L.bad >= 2) liveLamp("orange", problem);
+    else if (!problem) liveLamp("green", "EN DIRECT");
+  } catch (e) {}
+}
+
+async function liveCapBitrate(L) {
+  try {
+    const sender = L.pc.getSenders().find(s => s.track && s.track.kind === "video");
+    const p = sender.getParameters();
+    if (!p.encodings || !p.encodings.length) p.encodings = [{}];
+    p.encodings[0].maxBitrate = 2500000;
+    await sender.setParameters(p);
+  } catch (e) {}
+}
+
+async function livePoll() {
+  const L = live;
+  if (!L || L.busy) return;
+  L.busy = true;
+  try {
+    const res = await fetch(`${SERVER_URL}/api/live/recv?for=phone&after=${L.lastId}&p=${encodeURIComponent(ADMIN_PASS)}`);
+    const data = await res.json();
+    for (const m of data.msgs) {
+      L.lastId = m.id;
+      if (live !== L) return;
+      if (m.type === "stop" && (m.sid === L.sid || m.sid === "*")) { setLive("Direct coupé."); liveStop(false, "Direct coupé"); return; }
+      if (m.sid !== L.sid) continue;
+      if (m.type === "answer") { await L.pc.setRemoteDescription(JSON.parse(m.data)); liveCapBitrate(L); }
+      else if (m.type === "ice") { try { await L.pc.addIceCandidate(JSON.parse(m.data)); } catch (e) {} }
+    }
+  } catch (e) {} finally { L.busy = false; }
+}
+
+function liveStop(notify, why) {
+  const L = live;
+  if (!L) return;
+  live = null;
+  clearInterval(L.poll);
+  clearInterval(L.stats);
+  clearTimeout(L.lost);
+  try { L.pc.close(); } catch (e) {}
+  L.stream.getTracks().forEach(t => t.stop());
+  try { if (L.wake) L.wake.release(); } catch (e) {}
+  liveVideo.srcObject = null;
+  liveFull.style.display = "none";
+  try { if (document.fullscreenElement) document.exitFullscreen(); } catch (e) {}
+  try { if (screen.orientation && screen.orientation.unlock) screen.orientation.unlock(); } catch (e) {}
+  liveBtn.classList.remove("active");
+  liveBtn.textContent = "Démarrer le direct";
+  liveLamp("red", why || "Direct arrêté");
+  if (notify) fetch(`${SERVER_URL}/api/live/stop?sid=${L.sid}&p=${encodeURIComponent(ADMIN_PASS)}`, { method: "POST" }).catch(() => {});
+}
+
+liveBtn.addEventListener("click", () => {
+  if (live) { liveStop(true, "Direct arrêté"); setLive("Direct arrêté."); } else liveStart();
+});
+document.getElementById("live-stop-big").addEventListener("click", () => { liveStop(true, "Direct arrêté"); setLive("Direct arrêté."); });
+window.addEventListener("pagehide", () => {
+  if (live) navigator.sendBeacon(`${SERVER_URL}/api/live/stop?sid=${live.sid}&p=${encodeURIComponent(ADMIN_PASS)}`);
+});
+document.addEventListener("visibilitychange", async () => {
+  if (live && document.visibilityState === "visible" && navigator.wakeLock) { try { live.wake = await navigator.wakeLock.request("screen"); } catch (e) {} }
+});
 </script>
 </body>
 </html>
