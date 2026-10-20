@@ -210,6 +210,10 @@ const ADMIN_PASS = "27012022";
 const RID = Math.random().toString(36).slice(2, 10);
 var adminOnline = false;
 
+fetch(`${SERVER_URL}/api/logo`).then(r => r.json()).then(d => {
+  if (d.logo) { const img = document.getElementById("login-logo"); img.src = d.logo; img.style.display = "block"; }
+}).catch(() => {});
+
 function toast(msg) {
   const t = document.getElementById("toast");
   t.textContent = msg;
