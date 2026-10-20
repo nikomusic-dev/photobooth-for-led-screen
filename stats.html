@@ -1,0 +1,152 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Statistiques - Photobooth</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background: #2a2a2d; color: #ddd; font-family: -apple-system, 'Segoe UI', sans-serif; padding: 16px; }
+  #login { display: flex; flex-direction: column; gap: 12px; align-items: center; margin-top: 18vh; }
+  #login input { padding: 12px; border-radius: 8px; border: none; width: 260px; font-size: 16px; }
+  #login button, .bar button { padding: 12px 22px; border-radius: 8px; border: none; background: #ff4d8d; color: #fff; font-weight: 700; font-size: 15px; cursor: pointer; }
+  #login-error { color: #ff4d8d; font-size: 13px; min-height: 16px; }
+  #page { display: none; max-width: 1100px; margin: 0 auto; }
+  h1 { font-size: 24px; color: #fff; }
+  .bar { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; margin: 10px 0 18px; font-size: 14px; color: #999; }
+  .bar input { padding: 10px; border-radius: 8px; border: none; background: #19191b; color: #fff; font-size: 15px; }
+  .cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 12px; }
+  .card { background: #1f1f22; border-radius: 12px; padding: 16px; }
+  .card b { display: block; font-size: 34px; color: #ff4d8d; }
+  .card span { font-size: 12px; text-transform: uppercase; letter-spacing: 0.5px; color: #aaa; }
+  .card small { display: block; margin-top: 6px; font-size: 12px; color: #777; }
+  h2 { font-size: 15px; color: #ff4d8d; text-transform: uppercase; letter-spacing: 1.5px; margin: 26px 0 10px; }
+  #hours { background: #1f1f22; border-radius: 12px; padding: 16px; display: flex; align-items: flex-end; gap: 8px; height: 220px; overflow-x: auto; }
+  .h { flex: 1 0 34px; max-width: 70px; display: flex; flex-direction: column; align-items: center; justify-content: flex-end; height: 100%; font-size: 11px; color: #aaa; }
+  .h i { width: 100%; background: linear-gradient(180deg, #ff4d8d, #c2316a); border-radius: 4px 4px 0 0; min-height: 2px; }
+  .h em { font-style: normal; color: #fff; margin-bottom: 4px; }
+  table { width: 100%; border-collapse: collapse; background: #1f1f22; border-radius: 12px; overflow: hidden; font-size: 14px; }
+  td, th { padding: 10px 12px; text-align: left; border-bottom: 1px solid #2c2c30; }
+  th { color: #999; font-size: 12px; text-transform: uppercase; }
+  .muted { color: #777; font-size: 13px; margin-top: 8px; }
+</style>
+</head>
+<body>
+<div id="login">
+  <h2 style="color:#fff;">Statistiques</h2>
+  <input id="user-input" placeholder="Identifiant" autocapitalize="off" />
+  <input id="pass-input" type="password" placeholder="Mot de passe" />
+  <button id="login-btn">Connexion</button>
+  <div id="login-error"></div>
+</div>
+
+<div id="page">
+  <h1>📊 Statistiques de la soirée</h1>
+  <div class="bar">
+    <span>Soirée du</span><input type="date" id="day">
+    <button id="refresh">Actualiser</button>
+    <span id="updated"></span>
+  </div>
+  <div class="cards" id="cards"></div>
+  <h2>Photos par heure</h2>
+  <div id="hours"></div>
+  <h2>Mini-jeu</h2>
+  <div id="races"></div>
+  <p class="muted">Une « soirée » va de midi à midi le lendemain. Un téléphone = une personne (même navigateur). Les chiffres sont sauvegardés toutes les minutes.</p>
+</div>
+
+<script>
+const SERVER_URL = "https://niko-photobooth-for-led-screen.onrender.com";
+const ADMIN_USER = "NIKO";
+const ADMIN_PASS = "27012022";
+
+const $ = (id) => document.getElementById(id);
+const hm = (t) => new Date(t).toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" });
+
+function card(value, label, note) {
+  const c = document.createElement("div");
+  c.className = "card";
+  c.innerHTML = "<b></b><span></span><small></small>";
+  c.querySelector("b").textContent = value;
+  c.querySelector("span").textContent = label;
+  c.querySelector("small").textContent = note || "";
+  return c;
+}
+
+async function load() {
+  const day = $("day").value;
+  $("updated").textContent = "Chargement...";
+  try {
+    const q = new URLSearchParams({ p: ADMIN_PASS });
+    if (day) q.set("day", day);
+    const r = await fetch(`${SERVER_URL}/api/stats?${q}`);
+    const s = await r.json();
+    if (!r.ok) { $("updated").textContent = s.error || "Erreur"; return; }
+    if (!day) $("day").value = s.day;
+    render(s);
+    $("updated").textContent = "Mis à jour à " + hm(Date.now());
+  } catch (e) { $("updated").textContent = "Serveur injoignable (il se réveille peut-être, réessaie dans 30 s)"; }
+}
+
+function render(s) {
+  const cards = $("cards");
+  cards.innerHTML = "";
+  cards.append(
+    card(s.visitors, "Téléphones venus", "ont ouvert la page photo (QR code scanné)"),
+    card(s.uploaders, "Participants", "téléphones ayant envoyé au moins une photo"),
+    card(s.participation + " %", "Taux de participation", "participants / téléphones venus"),
+    card(s.photos, "Photos reçues"),
+    card(s.avgPerUploader, "Photos par participant", "record : " + s.topUploader + " photos sur un seul téléphone"),
+    card(s.peak, "Pic de connexions", s.peakAt ? "téléphones en même temps, à " + hm(s.peakAt) : "téléphones en même temps"),
+    card(s.races.length, "Courses jouées", s.gameSignups + " inscrit(s) au mini-jeu"),
+    card(s.draws, "Tirages au sort"),
+    card(s.reactions, "Réactions emoji"),
+    card(s.votes, "Votes"),
+    card(s.blocked, "Textes bloqués", s.suspensions + " téléphone(s) suspendu(s)")
+  );
+  // photos par heure, de 12h à 11h (ordre d'une soirée)
+  const hours = $("hours");
+  hours.innerHTML = "";
+  const keys = Object.keys(s.hours).sort((a, b) => ((+a + 12) % 24) - ((+b + 12) % 24));
+  const max = Math.max(1, ...keys.map(k => s.hours[k]));
+  if (!keys.length) hours.innerHTML = '<span class="muted">Aucune photo pour l\'instant.</span>';
+  keys.forEach(k => {
+    const h = document.createElement("div");
+    h.className = "h";
+    h.innerHTML = "<em></em><i></i><span></span>";
+    h.querySelector("em").textContent = s.hours[k];
+    h.querySelector("i").style.height = (s.hours[k] / max) * 160 + "px";
+    h.querySelector("span").textContent = k + "h";
+    hours.appendChild(h);
+  });
+  const races = $("races");
+  if (!s.races.length) { races.innerHTML = '<p class="muted">Aucune course jouée.</p>'; return; }
+  const t = document.createElement("table");
+  t.innerHTML = "<tr><th>Heure</th><th>Gagnant</th><th>Joueurs</th></tr>";
+  s.races.forEach(r => {
+    const tr = document.createElement("tr");
+    [hm(r.t), r.winner ? "🏆 " + r.winner : "—", r.players.join(", ")].forEach(v => { const td = document.createElement("td"); td.textContent = v; tr.appendChild(td); });
+    t.appendChild(tr);
+  });
+  races.innerHTML = "";
+  races.appendChild(t);
+}
+
+function show() {
+  $("login").style.display = "none";
+  $("page").style.display = "block";
+  load();
+  setInterval(load, 30000);
+}
+$("day").addEventListener("change", load);
+$("refresh").addEventListener("click", load);
+$("login-btn").addEventListener("click", () => {
+  if ($("user-input").value === ADMIN_USER && $("pass-input").value === ADMIN_PASS) {
+    try { localStorage.setItem("remote-ok", "1"); } catch (e) {}
+    show();
+  } else $("login-error").textContent = "Identifiants incorrects";
+});
+try { if (localStorage.getItem("remote-ok") === "1") show(); } catch (e) {}
+</script>
+</body>
+</html>
