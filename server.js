@@ -108,6 +108,7 @@ function registerBlockedAttempt(guestId) {
     suspendedGuests.set(guestId, until);
     blockedAttempts.delete(guestId);
     staffAlerts.push({ id: ++staffAlertSeq, guestId, t: now, until });
+    st().suspensions++;
     if (staffAlerts.length > 50) staffAlerts = staffAlerts.slice(-50);
   }
 }
@@ -117,7 +118,9 @@ app.get("/api/guest-status", (req, res) => {
   const guestId = String(req.query.id || "").slice(0, 60);
   const until = isSuspended(guestId);
   const won = winners.get(guestId) || null;
-  res.json({ suspended: !!until, until: until || null, winner: won });
+  statVisitor(guestId);
+  gameTick();
+  res.json({ suspended: !!until, until: until || null, winner: won, game: game.phase });
 });
 
 // --- Tirage au sort : le téléphone du gagnant est prévenu (+ lot optionnel réglé depuis la régie) ---
@@ -128,6 +131,7 @@ app.post("/api/winner", (req, res) => {
   if (!isAdmin(req)) return res.status(401).json({ error: "Non autorisé" });
   const guestId = String(req.query.id || "").slice(0, 60);
   if (guestId) winners.set(guestId, { t: Date.now(), prize: prizeOn && prizeText ? prizeText : "" });
+  st().draws++;
   res.json({ ok: true });
 });
 app.get("/api/prize", (req, res) => {
@@ -181,6 +185,7 @@ app.post("/api/photos", upload.single("photo"), async (req, res) => {
   }
   if (moderationEnabled && !isCaptionAllowed(caption)) {
     registerBlockedAttempt(guestId);
+    st().blocked++;
     return res.status(422).json({ error: "caption_blocked" });
   }
   let uploaded;
@@ -197,6 +202,7 @@ app.post("/api/photos", upload.single("photo"), async (req, res) => {
     createdAt: Date.now()
   };
   photos.push(photo);
+  statPhoto(guestId);
   // on garde seulement les 200 dernières en mémoire
   if (photos.length > 200) photos = photos.slice(-200);
 
@@ -227,7 +233,7 @@ app.delete("/api/photos", async (req, res) => {
 const guestsSeen = new Map();
 app.get("/api/ping", (req, res) => {
   const id = String(req.query.id || "").slice(0, 40);
-  if (id) guestsSeen.set(id, Date.now());
+  if (id) { guestsSeen.set(id, Date.now()); statVisitor(id); }
   res.json({ ok: true, moderation: moderationEnabled });
 });
 app.get("/api/guests", (req, res) => {
@@ -349,7 +355,7 @@ app.get("/api/state", (req, res) => {
   if (!isAdmin(req)) return res.status(401).json({ error: "Non autorisé" });
   const rid = String(req.query.r || "").slice(0, 20);
   if (rid) remotesSeen.set((req.query.k === "regie" ? "regie:" : "remote:") + rid, Date.now());
-  res.json({ state: adminState, now: Date.now(), moderation: moderationEnabled });
+  res.json({ state: adminState, now: Date.now(), moderation: moderationEnabled, game: gameView("") });
 });
 
 app.get("/api/remotes", (req, res) => {
@@ -438,6 +444,7 @@ app.post("/api/react", (req, res) => {
   if (r.n + n > 12) return res.json({ ok: false, slow: true });
   r.n += n; reactRate.set(id, r);
   for (let i = 0; i < n; i++) reactionLog.push({ id: ++reactionSeq, e, t: now });
+  st().reactions += n;
   if (reactionLog.length > 150) reactionLog = reactionLog.slice(-150);
   res.json({ ok: true });
 });
@@ -455,6 +462,7 @@ app.post("/api/vote", (req, res) => {
   if (pollVoters.has(id)) poll.votes[pollVoters.get(id)]--;
   pollVoters.set(id, i);
   poll.votes[i]++;
+  st().votes++;
   res.json({ ok: true, mine: i });
 });
 
@@ -492,13 +500,244 @@ app.post("/api/logo", express.text({ type: "*/*", limit: "2mb" }), (req, res) =>
     return res.status(400).json({ error: "image invalide" });
   }
   clubLogo = { data, updatedAt: Date.now() };
+  // copie sur Cloudinary : le logo revient tout seul quand le serveur Render redémarre
+  if (cloudOk()) cloudinary.uploader.upload(data, { public_id: "photobooth-config/logo", overwrite: true, invalidate: true }).catch(() => {});
   res.json({ ok: true });
 });
 app.delete("/api/logo", (req, res) => {
   if (!isAdmin(req)) return res.status(401).json({ error: "Non autorisé" });
   clubLogo = null;
+  if (cloudOk()) cloudinary.uploader.destroy("photobooth-config/logo", { invalidate: true }).catch(() => {});
   res.json({ ok: true });
 });
+
+// --- Statistiques de la soirée : sauvegardées sur Cloudinary toutes les minutes (survivent aux redémarrages de Render) ---
+const PARIS_HOUR = new Intl.DateTimeFormat("en-GB", { timeZone: "Europe/Paris", hour: "2-digit", hourCycle: "h23" });
+const cloudOk = () => !!process.env.CLOUDINARY_CLOUD_NAME;
+function eventDay() { return currentEventFolder().split("/").pop(); }
+function newStats() {
+  return { day: eventDay(), visitors: {}, uploaders: {}, photos: 0, blocked: 0, suspensions: 0, hours: {},
+    peak: 0, peakAt: 0, draws: 0, races: [], gameSignups: {}, reactions: 0, votes: 0 };
+}
+let stats = newStats();
+let statsDirty = false;
+function st() {
+  if (stats.day !== eventDay()) { saveStats(); stats = newStats(); }
+  statsDirty = true;
+  return stats;
+}
+function statVisitor(id) { if (id && !stats.visitors[id]) st().visitors[id] = Date.now(); }
+function statPhoto(id) {
+  const s = st();
+  s.photos++;
+  if (id) s.uploaders[id] = (s.uploaders[id] || 0) + 1;
+  const h = PARIS_HOUR.format(new Date()).padStart(2, "0");
+  s.hours[h] = (s.hours[h] || 0) + 1;
+}
+// pic de téléphones connectés en même temps
+setInterval(() => {
+  const now = Date.now();
+  let n = 0;
+  for (const t of guestsSeen.values()) if (now - t < 25000) n++;
+  if (n > stats.peak) { const s = st(); s.peak = n; s.peakAt = now; }
+}, 15000);
+
+function statsFileId(day) { return `photobooth-stats/stats-${day}.json`; }
+async function loadStatsFile(day) {
+  if (!cloudOk()) return null;
+  try {
+    const r = await cloudinary.api.resource(statsFileId(day), { resource_type: "raw" });
+    const resp = await fetch(r.secure_url);
+    return await resp.json();
+  } catch (e) { return null; }
+}
+function saveStats() {
+  if (!cloudOk() || !statsDirty) return;
+  statsDirty = false;
+  const s = stats;
+  const stream = cloudinary.uploader.upload_stream(
+    { resource_type: "raw", public_id: statsFileId(s.day), overwrite: true, invalidate: true },
+    (err) => { if (err) statsDirty = true; }
+  );
+  stream.end(Buffer.from(JSON.stringify(s)));
+}
+setInterval(saveStats, 60000);
+// Au démarrage : on reprend les statistiques déjà enregistrées pour cette soirée
+loadStatsFile(eventDay()).then(old => {
+  if (!old || old.day !== stats.day) return;
+  const s = stats;
+  Object.assign(old.visitors, s.visitors);
+  for (const k in s.uploaders) old.uploaders[k] = (old.uploaders[k] || 0) + s.uploaders[k];
+  for (const k in s.hours) old.hours[k] = (old.hours[k] || 0) + s.hours[k];
+  Object.assign(old.gameSignups, s.gameSignups);
+  ["photos", "blocked", "suspensions", "draws", "reactions", "votes"].forEach(k => old[k] = (old[k] || 0) + s[k]);
+  old.races = (old.races || []).concat(s.races);
+  if (s.peak > old.peak) { old.peak = s.peak; old.peakAt = s.peakAt; }
+  stats = old;
+});
+
+function statsSummary(s) {
+  const visitors = Object.keys(s.visitors || {}).length;
+  const uploaders = Object.keys(s.uploaders || {}).length;
+  return {
+    day: s.day, visitors, uploaders, photos: s.photos || 0,
+    avgPerUploader: uploaders ? Math.round((s.photos / uploaders) * 10) / 10 : 0,
+    participation: visitors ? Math.round((uploaders / visitors) * 100) : 0,
+    topUploader: Math.max(0, ...Object.values(s.uploaders || {})),
+    peak: s.peak || 0, peakAt: s.peakAt || 0,
+    hours: s.hours || {}, blocked: s.blocked || 0, suspensions: s.suspensions || 0,
+    draws: s.draws || 0, reactions: s.reactions || 0, votes: s.votes || 0,
+    gameSignups: Object.keys(s.gameSignups || {}).length,
+    races: (s.races || []).map(r => ({ t: r.t, winner: r.winner, players: r.players }))
+  };
+}
+app.get("/api/stats", async (req, res) => {
+  if (!isAdmin(req)) return res.status(401).json({ error: "Non autorisé" });
+  const day = String(req.query.day || "");
+  if (day && day !== stats.day) {
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(day)) return res.status(400).json({ error: "date invalide" });
+    const old = await loadStatsFile(day);
+    if (!old) return res.status(404).json({ error: "Aucune statistique pour cette date" });
+    return res.json(statsSummary(old));
+  }
+  res.json(statsSummary(stats));
+});
+
+// --- Mini-jeu : course de voitures au tap (4 joueurs tirés au sort parmi les inscrits) ---
+const GAME_FINISH = 100;            // nombre de taps pour franchir la ligne
+const GAME_MAX_RATE = 14;           // anti-triche : 14 taps par seconde maximum
+const GAME_COUNTDOWN_MS = 10000;    // compte à rebours avant le départ
+const GAME_MAX_RACE_MS = 45000;     // sécurité : la course s'arrête au bout de 45 s
+const GAME_RESULT_MS = 15000;       // durée d'affichage du podium
+const GAME_COLORS = ["#ff2d55", "#30d158", "#0a84ff", "#ffd60a"];
+const game = { id: 0, phase: "off", signupEndsAt: 0, goAt: 0, resultUntil: 0, players: [], podium: [], notice: "" };
+const gameSignups = new Map();      // guestId -> pseudo
+
+function gameStart() {
+  const ids = [...gameSignups.keys()];
+  if (ids.length < 2) {
+    game.signupEndsAt = 0;
+    game.notice = "Il faut au moins 2 inscrits pour lancer la course";
+    return false;
+  }
+  for (let i = ids.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [ids[i], ids[j]] = [ids[j], ids[i]]; }
+  const now = Date.now();
+  game.id++;
+  game.goAt = now + GAME_COUNTDOWN_MS;
+  game.players = ids.slice(0, 4).map((gid, i) => ({ gid, name: gameSignups.get(gid), color: GAME_COLORS[i], taps: 0, tokens: 3, lastT: game.goAt, finishedAt: 0 }));
+  game.players.forEach(p => gameSignups.delete(p.gid));
+  game.podium = [];
+  game.phase = "countdown";
+  game.signupEndsAt = 0;
+  game.notice = "";
+  return true;
+}
+
+function gameFinish() {
+  const now = Date.now();
+  const rank = p => (p.finishedAt ? [0, p.finishedAt] : [1, -p.taps]);
+  const ranking = [...game.players].sort((a, b) => rank(a)[0] - rank(b)[0] || rank(a)[1] - rank(b)[1]);
+  game.podium = ranking.filter(p => p.taps > 0).slice(0, 3).map((p, i) => ({ name: p.name, color: p.color, place: i + 1, gid: p.gid }));
+  game.phase = "result";
+  game.resultUntil = now + GAME_RESULT_MS;
+  const w = game.podium[0];
+  if (w) winners.set(w.gid, { t: now, prize: prizeOn && prizeText ? prizeText : "", kind: "race", name: w.name });
+  st().races.push({ t: now, winner: w ? w.name : "", players: game.players.map(p => p.name) });
+}
+
+function gameTick() {
+  const now = Date.now();
+  if (game.phase === "signup" && game.signupEndsAt && now >= game.signupEndsAt) gameStart();
+  if (game.phase === "countdown" && now >= game.goAt) game.phase = "race";
+  if (game.phase === "race" && now - game.goAt > GAME_MAX_RACE_MS) gameFinish();
+  if (game.phase === "result" && now >= game.resultUntil) { game.phase = "off"; game.players = []; game.podium = []; }
+}
+setInterval(gameTick, 250);
+
+function gameView(gid) {
+  gameTick();
+  const meIndex = gid ? game.players.findIndex(p => p.gid === gid) : -1;
+  const podiumPlace = gid ? (game.podium.find(p => p.gid === gid) || {}).place || 0 : 0;
+  return {
+    now: Date.now(), id: game.id, phase: game.phase, finish: GAME_FINISH,
+    signups: gameSignups.size, signupEndsAt: game.signupEndsAt, goAt: game.goAt, notice: game.notice,
+    players: game.players.map(p => ({ name: p.name, color: p.color, taps: p.taps, done: !!p.finishedAt })),
+    podium: game.podium.map(p => ({ name: p.name, color: p.color, place: p.place })),
+    me: gid ? { signedUp: gameSignups.has(gid), name: gameSignups.get(gid) || (meIndex >= 0 ? game.players[meIndex].name : ""), player: meIndex, place: podiumPlace } : null
+  };
+}
+
+app.get("/api/game", (req, res) => {
+  const gid = String(req.query.id || "").slice(0, 60);
+  statVisitor(gid);
+  res.json(gameView(gid));
+});
+
+app.post("/api/game/join", (req, res) => {
+  const gid = String(req.query.id || "").slice(0, 60);
+  const name = String(req.query.name || "").replace(/\s+/g, " ").trim().slice(0, 10);
+  if (!gid) return res.status(400).json({ error: "id" });
+  if (game.phase !== "signup") return res.json({ error: "closed" });
+  if (isSuspended(gid)) return res.json({ error: "suspended" });
+  if (!name) return res.json({ error: "name_empty" });
+  if (moderationEnabled && !isCaptionAllowed(name)) { registerBlockedAttempt(gid); st().blocked++; return res.json({ error: "name_blocked" }); }
+  for (const [other, n] of gameSignups) if (other !== gid && n.toLowerCase() === name.toLowerCase()) return res.json({ error: "name_taken" });
+  gameSignups.set(gid, name);
+  st().gameSignups[gid] = name;
+  res.json({ ok: true, name, signups: gameSignups.size });
+});
+
+app.post("/api/game/leave", (req, res) => {
+  gameSignups.delete(String(req.query.id || ""));
+  res.json({ ok: true });
+});
+
+app.post("/api/game/tap", (req, res) => {
+  const gid = String(req.query.id || "").slice(0, 60);
+  const n = Math.min(Math.max(parseInt(req.query.n, 10) || 0, 0), 30);
+  gameTick();
+  const p = game.players.find(x => x.gid === gid);
+  if (p && game.phase === "race" && n > 0) {
+    const now = Date.now();
+    p.tokens = Math.min(GAME_MAX_RATE, p.tokens + ((now - p.lastT) / 1000) * GAME_MAX_RATE);
+    p.lastT = now;
+    const ok = Math.min(n, Math.floor(p.tokens));
+    p.tokens -= ok;
+    p.taps = Math.min(GAME_FINISH, p.taps + ok);
+    if (p.taps >= GAME_FINISH) { p.finishedAt = now; gameFinish(); }
+  }
+  res.json(gameView(gid));
+});
+
+// Commandes du staff : ouvrir les inscriptions (avec départ auto dans X minutes), lancer, arrêter
+app.post("/api/game/admin", (req, res) => {
+  if (!isAdmin(req)) return res.status(401).json({ error: "Non autorisé" });
+  const a = String(req.query.a || "");
+  let error = "";
+  gameTick();
+  const busy = ["countdown", "race", "result"].includes(game.phase);
+  if (a === "open") {
+    if (busy) error = "Une course est déjà en cours";
+    else {
+      const min = Math.min(Math.max(parseFloat(req.query.min) || 0, 0), 60);
+      game.phase = "signup";
+      game.signupEndsAt = min > 0 ? Date.now() + min * 60000 : 0;
+      game.notice = "";
+    }
+  } else if (a === "start") {
+    if (busy) error = "Une course est déjà en cours";
+    else if (!gameStart()) error = game.notice;
+  } else if (a === "stop") {
+    game.phase = "off"; game.players = []; game.podium = []; game.signupEndsAt = 0; game.notice = "";
+    if (req.query.clear === "1") gameSignups.clear();
+  } else error = "action inconnue";
+  res.json({ ...gameView(""), error });
+});
+
+// Au démarrage, on récupère le logo enregistré sur Cloudinary
+if (cloudOk()) cloudinary.api.resource("photobooth-config/logo").then(r => {
+  if (!clubLogo) clubLogo = { data: r.secure_url, updatedAt: Date.now() };
+}).catch(() => {});
 
 app.get("/", (req, res) => {
   res.send("Photobooth server actif.");
