@@ -116,7 +116,29 @@ function registerBlockedAttempt(guestId) {
 app.get("/api/guest-status", (req, res) => {
   const guestId = String(req.query.id || "").slice(0, 60);
   const until = isSuspended(guestId);
-  res.json({ suspended: !!until, until: until || null });
+  const won = winners.get(guestId) || null;
+  res.json({ suspended: !!until, until: until || null, winner: won });
+});
+
+// --- Tirage au sort : le téléphone du gagnant est prévenu (+ lot optionnel réglé depuis la régie) ---
+const winners = new Map();   // guestId -> { t, prize } : tous les gagnants de la soirée, sans limite de temps
+let prizeOn = false;
+let prizeText = "";
+app.post("/api/winner", (req, res) => {
+  if (!isAdmin(req)) return res.status(401).json({ error: "Non autorisé" });
+  const guestId = String(req.query.id || "").slice(0, 60);
+  if (guestId) winners.set(guestId, { t: Date.now(), prize: prizeOn && prizeText ? prizeText : "" });
+  res.json({ ok: true });
+});
+app.get("/api/prize", (req, res) => {
+  if (!isAdmin(req)) return res.status(401).json({ error: "Non autorisé" });
+  res.json({ on: prizeOn, text: prizeText });
+});
+app.post("/api/prize", (req, res) => {
+  if (!isAdmin(req)) return res.status(401).json({ error: "Non autorisé" });
+  if (req.query.text !== undefined) prizeText = String(req.query.text).trim().slice(0, 60);
+  if (req.query.on !== undefined) prizeOn = req.query.on === "1";
+  res.json({ on: prizeOn, text: prizeText });
 });
 
 // Le staff (admin/remote/régie) récupère les alertes de suspension
@@ -456,6 +478,26 @@ app.post("/api/fun-admin", (req, res) => {
   else if (a === "poll_stop" && poll) poll.open = false;
   else if (a === "poll_clear") { poll = null; pollVoters.clear(); }
   res.json({ ok: true, reactionsOn, poll });
+});
+
+// --- Logo du club : stocké côté serveur pour être partagé entre admin, régie, remote et la page invité ---
+let clubLogo = null; // { data: "data:image/...;base64,...", updatedAt }
+app.get("/api/logo", (req, res) => {
+  res.json({ logo: clubLogo ? clubLogo.data : null, updatedAt: clubLogo ? clubLogo.updatedAt : 0 });
+});
+app.post("/api/logo", express.text({ type: "*/*", limit: "2mb" }), (req, res) => {
+  if (!isAdmin(req)) return res.status(401).json({ error: "Non autorisé" });
+  const data = typeof req.body === "string" ? req.body.trim() : "";
+  if (!data || !/^data:image\/(png|jpe?g|webp|gif|svg\+xml);base64,/.test(data)) {
+    return res.status(400).json({ error: "image invalide" });
+  }
+  clubLogo = { data, updatedAt: Date.now() };
+  res.json({ ok: true });
+});
+app.delete("/api/logo", (req, res) => {
+  if (!isAdmin(req)) return res.status(401).json({ error: "Non autorisé" });
+  clubLogo = null;
+  res.json({ ok: true });
 });
 
 app.get("/", (req, res) => {
