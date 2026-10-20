@@ -211,6 +211,11 @@
         <button class="btn" id="r-poll-stop">Clôturer</button>
         <button class="btn danger" id="r-poll-clear">Effacer</button>
       </div>
+      <h3 style="margin-top:16px;">Mini-jeu : course de voitures</h3>
+      <div id="g-status" style="text-transform:none; font-size:13px; color:#fff; margin:6px 0;">…</div>
+      <div class="row"><input type="text" id="g-min" inputmode="numeric" value="5" style="width:60px;"><button class="btn" id="g-open">Ouvrir les inscriptions (départ auto, min)</button></div>
+      <div class="row"><button class="btn" id="g-start">Lancer maintenant</button><button class="btn danger" id="g-stop">Arrêter</button></div>
+      <div class="row"><a class="btn" href="stats.html" target="_blank" style="text-decoration:none; text-align:center; line-height:22px;">📊 Statistiques de la soirée</a></div>
     </div>
 
   </div>
@@ -262,6 +267,7 @@ async function pollState() {
     document.getElementById("dot").classList.toggle("on", !!online);
     document.getElementById("status-text").textContent = online ? "Écran (page admin) en ligne" : "Écran (page admin) hors ligne";
     setActive("b-moderation", data.moderation === false, "Modération : OFF", "Modération : ON");
+    renderGame(data.game);
     if (!s) return;
     document.getElementById("c-received").textContent = s.received;
     document.getElementById("c-shown").textContent = s.shown;
@@ -667,6 +673,34 @@ document.getElementById("r-prize-text").addEventListener("change", async () => {
 });
 setInterval(loadPrize, 5000);
 loadPrize();
+
+// --- Mini-jeu : inscriptions, départ, arrêt (l'état arrive avec /api/state) ---
+function gameFmt(ms) { const s = Math.max(0, Math.ceil(ms / 1000)); return Math.floor(s / 60) + ":" + String(s % 60).padStart(2, "0"); }
+function renderGame(g) {
+  if (!g) return;
+  const offset = g.now - Date.now();
+  const txt = {
+    off: "Fermé",
+    signup: "Inscriptions ouvertes" + (g.signupEndsAt ? " · départ auto dans " + gameFmt(g.signupEndsAt - (Date.now() + offset)) : ""),
+    countdown: "Départ imminent : " + g.players.map(p => p.name).join(", "),
+    race: "Course en cours !",
+    result: g.podium[0] ? "Victoire de " + g.podium[0].name + " !" : "Course terminée"
+  }[g.phase] || g.phase;
+  document.getElementById("g-status").textContent = txt + " · " + g.signups + " inscrit" + (g.signups > 1 ? "s" : "") + (g.notice ? " · " + g.notice : "");
+  document.getElementById("g-open").classList.toggle("active", g.phase === "signup");
+}
+async function gameAct(a, extra) {
+  try {
+    const q = new URLSearchParams({ a, p: ADMIN_PASS, ...(extra || {}) });
+    const r = await fetch(`${SERVER_URL}/api/game/admin?${q}`, { method: "POST" });
+    const d = await r.json();
+    if (d.error) alert(d.error); else toast("Envoyé");
+    renderGame(d);
+  } catch (e) { toast("Erreur d'envoi"); }
+}
+document.getElementById("g-open").addEventListener("click", () => gameAct("open", { min: parseFloat(document.getElementById("g-min").value) || 0 }));
+document.getElementById("g-start").addEventListener("click", () => gameAct("start"));
+document.getElementById("g-stop").addEventListener("click", () => { if (confirm("Arrêter le mini-jeu et effacer les inscrits ?")) gameAct("stop", { clear: 1 }); });
 </script>
 </body>
 </html>
