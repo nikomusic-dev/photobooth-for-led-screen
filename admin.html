@@ -345,10 +345,10 @@
     opacity: 0; transition: opacity 0.4s ease;
   }
   #winner-layer.show { opacity: 1; }
-  #winner-title { font: 900 42px 'Helvetica Neue', Arial, sans-serif; color: #ffd60a; letter-spacing: 6px; text-transform: uppercase; margin-bottom: 10px; }
-  #winner-card { background: #fff; padding: 10px 10px 46px; width: 290px; transform: rotate(-3deg); box-shadow: 0 10px 30px rgba(0,0,0,0.6); }
-  #winner-card img { width: 100%; height: 210px; object-fit: cover; display: block; }
-  #winner-caption { font-family: 'Comic Sans MS', cursive, sans-serif; font-size: 32px; color: #333; text-align: center; margin-top: 6px; min-height: 36px; }
+  #winner-title { font: 900 42px 'Helvetica Neue', Arial, sans-serif; color: #ffd60a; letter-spacing: 6px; text-transform: uppercase; margin-bottom: 6px; white-space: nowrap; flex: none; }
+  #winner-card { background: #fff; padding: 8px 8px 8px; width: 290px; flex: none; box-sizing: content-box; transform: rotate(-3deg); box-shadow: 0 10px 30px rgba(0,0,0,0.6); }
+  #winner-card img { width: 100%; height: 150px; object-fit: cover; display: block; }
+  #winner-caption { font-family: 'Comic Sans MS', cursive, sans-serif; font-size: 32px; line-height: 1.1; color: #333; text-align: center; margin-top: 6px; height: 78px; overflow: hidden; display: flex; align-items: center; justify-content: center; word-break: break-word; overflow-wrap: anywhere; }
 
   #ticker { position: absolute; left: 0; bottom: 0; width: 100%; height: 54px; background: rgba(0,0,0,0.6); overflow: hidden; display: none; align-items: center; z-index: 22; }
   #ticker.show { display: flex; }
@@ -664,10 +664,6 @@ if (y > maxY) maxY = y;
 
 function setupLogoUpload(inputId, imgId) {
   const img = document.getElementById(imgId);
-  try {
-    const saved = localStorage.getItem("logo-" + imgId);
-    if (saved) { img.src = saved; img.style.display = "block"; }
-  } catch (e) {}
   document.getElementById(inputId).addEventListener("change", (e) => {
     const file = e.target.files[0];
     if (!file) return;
@@ -675,11 +671,19 @@ function setupLogoUpload(inputId, imgId) {
     reader.onload = () => {
       img.src = reader.result;
       img.style.display = "block";
-      try { localStorage.setItem("logo-" + imgId, reader.result); } catch (err) {}
+      fetch(`${SERVER_URL}/api/logo?p=${encodeURIComponent(ADMIN_PASS)}`, { method: "POST", body: reader.result }).catch(() => {});
     };
     reader.readAsDataURL(file);
   });
 }
+async function loadServerLogo() {
+  try {
+    const r = await fetch(`${SERVER_URL}/api/logo`);
+    const d = await r.json();
+    if (d.logo) { const img = document.getElementById("logo-left-img"); img.src = d.logo; img.style.display = "block"; }
+  } catch (e) {}
+}
+loadServerLogo();
 setupLogoUpload("logo-left-input", "logo-left-img");
 document.getElementById("logo-btn").addEventListener("click", () => {
   document.getElementById("logo-left-input").click();
@@ -1705,6 +1709,94 @@ function renderSuspended(list) {
 }
 setInterval(fetchSuspended, 5000);
 fetchSuspended();
+
+// Légende du tirage : la taille du texte s'adapte pour que la carte garde toujours la même taille
+function fitWinnerCaption(cap, txt) {
+  cap.textContent = txt || "";
+  let size = 32;
+  cap.style.fontSize = size + "px";
+  while (cap.scrollHeight > cap.clientHeight + 1 && size > 12) { size -= 2; cap.style.fontSize = size + "px"; }
+}
+
+// Tirage au sort : même animation qu'avant, et en plus le téléphone du gagnant est prévenu
+// --- Roue de la fortune : bandeau horizontal façon machine à sous ---
+(function () {
+  const style = document.createElement("style");
+  style.textContent = `
+    #winner-reel-frame { position: relative; width: 100%; }
+    #winner-reel { position: relative; width: 100%; height: 190px; overflow: hidden; display: none; }
+    #winner-reel.show { display: block; }
+    #winner-reel-track { position: absolute; top: 0; left: 0; height: 190px; display: flex; align-items: center; }
+    .reel-item { flex: none; width: 150px; height: 170px; margin: 0 8px; background: #fff; border-radius: 4px; box-shadow: 0 6px 16px rgba(0,0,0,0.5); overflow: hidden; }
+    .reel-item img { width: 100%; height: 100%; object-fit: cover; display: block; }
+    #winner-reel::before, #winner-reel::after { content: ""; position: absolute; top: 0; bottom: 0; width: 18%; z-index: 2; pointer-events: none; }
+    #winner-reel::before { left: 0; background: linear-gradient(90deg, rgba(10,0,30,0.95), rgba(10,0,30,0)); }
+    #winner-reel::after { right: 0; background: linear-gradient(270deg, rgba(10,0,30,0.95), rgba(10,0,30,0)); }
+    #winner-pointer { position: absolute; left: 50%; top: -14px; transform: translateX(-50%); z-index: 3; width: 0; height: 0; border-left: 16px solid transparent; border-right: 16px solid transparent; border-top: 22px solid #ffd60a; filter: drop-shadow(0 2px 4px rgba(0,0,0,0.5)); }
+  `;
+  document.head.appendChild(style);
+  const frame = document.createElement("div");
+  frame.id = "winner-reel-frame";
+  frame.innerHTML = '<div id="winner-pointer"></div><div id="winner-reel"><div id="winner-reel-track"></div></div>';
+  const card = document.getElementById("winner-card");
+  card.parentNode.insertBefore(frame, card);
+})();
+
+function easeOutQuart(t) { return 1 - Math.pow(1 - t, 4); }
+
+drawWinner = function (silent) {
+  const pool = allPhotos.filter(p => !p.test);
+  if (!pool.length) { if (!silent) alert("Aucune photo reçue pour le moment."); return; }
+  clearInterval(winnerSpin);
+  clearTimeout(winnerTimer);
+  const layer = $("winner-layer");
+  const img = $("winner-img");
+  const cap = $("winner-caption");
+  cancelAnimationFrame(winnerSpin);
+  const card = $("winner-card");
+  const reel = $("winner-reel");
+  const track = $("winner-reel-track");
+  $("winner-title").textContent = "Tirage au sort...";
+  layer.classList.add("show");
+  card.style.display = "none";
+  reel.classList.add("show");
+  const winner = pool[Math.floor(Math.random() * pool.length)];
+  const ITEM_W = 166;
+  const N = 60;
+  const WIN_INDEX = 48;
+  track.innerHTML = "";
+  for (let i = 0; i < N; i++) {
+    const p = (i === WIN_INDEX) ? winner : pool[Math.floor(Math.random() * pool.length)];
+    const item = document.createElement("div");
+    item.className = "reel-item";
+    const im = document.createElement("img");
+    im.src = p.url;
+    item.appendChild(im);
+    track.appendChild(item);
+  }
+  const reelWidth = reel.clientWidth || 1920;
+  const startX = 0;
+  const endX = -(WIN_INDEX * ITEM_W - reelWidth / 2 + ITEM_W / 2);
+  track.style.transform = `translateX(${startX}px)`;
+  const DURATION = 6000;
+  const t0 = performance.now();
+  function frame(now) {
+    const t = Math.min(1, (now - t0) / DURATION);
+    const eased = 1 - Math.pow(1 - t, 4);
+    const x = startX + (endX - startX) * eased;
+    track.style.transform = `translateX(${x}px)`;
+    if (t < 1) { winnerSpin = requestAnimationFrame(frame); return; }
+    reel.classList.remove("show");
+    card.style.display = "";
+    img.src = winner.url;
+      fitWinnerCaption(cap, winner.caption);
+      $("winner-title").textContent = "🏆 Gagnant·e ! 🏆";
+      $("meme-btn").click();
+      if (winner.guestId) fetch(`${SERVER_URL}/api/winner?id=${encodeURIComponent(winner.guestId)}&p=${encodeURIComponent(ADMIN_PASS)}`, { method: "POST" }).catch(() => {});
+      winnerTimer = setTimeout(() => layer.classList.remove("show"), 10000);
+  }
+  winnerSpin = requestAnimationFrame(frame);
+};
 </script>
 <script src="fun.js"></script>
 <script src="live.js"></script>
