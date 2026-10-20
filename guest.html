@@ -134,6 +134,26 @@
   #fun-link, #my-photos-link { position: fixed; top: 8px; z-index: 60; background: #ff4d8d; color: #fff; text-decoration: none; font-weight: 700; font-size: 13px; padding: 8px 12px; border-radius: 18px; }
   #my-photos-link { right: 8px; }
   #fun-link-old { position: fixed; top: 8px; left: 8px; z-index: 60; background: #ff4d8d; color: #fff; text-decoration: none; font-weight: 700; font-size: 13px; padding: 8px 12px; border-radius: 18px; }
+  #game-join-btn, #game-signed { display: none; position: fixed; left: 50%; bottom: 16px; transform: translateX(-50%); z-index: 70; white-space: nowrap; }
+  #game-join-btn { background: #ffd60a; color: #000; font-weight: 800; font-size: 17px; padding: 14px 24px; box-shadow: 0 4px 18px rgba(255,214,10,0.45); animation: game-pulse 1.4s ease-in-out infinite; }
+  @keyframes game-pulse { 50% { transform: translateX(-50%) scale(1.06); } }
+  #game-signed { background: #1f3d24; color: #9ff0ae; font-size: 13px; font-weight: 700; padding: 10px 16px; border-radius: 20px; }
+  #game-join { position: fixed; inset: 0; z-index: 120; background: rgba(0,0,0,0.88); display: none; flex-direction: column; align-items: center; justify-content: center; padding: 24px; text-align: center; }
+  #game-join h2 { font-size: 22px; margin-bottom: 8px; }
+  #game-join p { color: #bbb; font-size: 14px; margin-bottom: 14px; }
+  #game-name { width: 240px; padding: 14px; border-radius: 10px; border: none; font-size: 22px; text-align: center; text-transform: uppercase; }
+  #game-join-err { color: #ff6b6b; min-height: 20px; margin: 10px 0; font-size: 14px; }
+  #game-screen { position: fixed; inset: 0; z-index: 150; background: radial-gradient(circle at 50% 30%, #2b1250 0%, #0a0a0a 75%); display: none; flex-direction: column; align-items: center; justify-content: center; text-align: center; padding: 24px; }
+  #game-title { font-size: 28px; font-weight: 800; color: #ffd60a; margin-bottom: 12px; }
+  #game-sub { font-size: 16px; color: #ddd; max-width: 330px; line-height: 1.45; }
+  #game-big { font-size: 110px; font-weight: 900; margin-top: 16px; }
+  #game-tap { position: fixed; inset: 0; z-index: 160; display: none; flex-direction: column; align-items: center; justify-content: center; color: #000; touch-action: none; user-select: none; -webkit-user-select: none; -webkit-touch-callout: none; }
+  #game-tap b { font-size: 64px; font-weight: 900; pointer-events: none; }
+  #game-tap span { font-size: 18px; font-weight: 700; margin-top: 8px; pointer-events: none; }
+  #game-tap.hit b { animation: game-hit 0.12s ease-out; }
+  @keyframes game-hit { from { transform: scale(1.18); } to { transform: scale(1); } }
+  #game-tap-track { position: absolute; left: 20px; right: 20px; bottom: 40px; height: 22px; background: rgba(0,0,0,0.3); border-radius: 11px; overflow: hidden; pointer-events: none; }
+  #game-tap-bar { height: 100%; width: 0; background: #000; border-radius: 11px; transition: width 0.2s linear; }
 </style>
 </head>
 <body>
@@ -193,6 +213,25 @@
   </div>
   <div id="status-msg2" style="margin-top:10px;"></div>
 </div>
+
+<button id="game-join-btn">🏁 Mini-jeu : je participe !</button>
+<div id="game-signed"></div>
+<div id="game-join">
+  <h2>🏁 Inscription au mini-jeu</h2>
+  <p>Choisis ton pseudo (10 caractères max). Il s'affichera sur l'écran géant si tu es tiré au sort.</p>
+  <input id="game-name" maxlength="10" placeholder="Ton pseudo" autocomplete="off" />
+  <div id="game-join-err"></div>
+  <div class="controls">
+    <button id="game-join-cancel" style="background:#333;">Annuler</button>
+    <button id="game-join-ok">Je m'inscris</button>
+  </div>
+</div>
+<div id="game-screen">
+  <div id="game-title"></div>
+  <div id="game-sub"></div>
+  <div id="game-big"></div>
+</div>
+<div id="game-tap"><b>TAPE !</b><span>le plus vite possible</span><div id="game-tap-track"><div id="game-tap-bar"></div></div></div>
 
 <script src="https://cdn.jsdelivr.net/npm/@mediapipe/face_detection/face_detection.js"></script>
 <script>
@@ -276,7 +315,7 @@ function showWinnerScreen(w) {
   el.style.cssText = "position:fixed;top:0;left:0;right:0;bottom:0;z-index:200;background:radial-gradient(circle at 50% 35%, #5a189a 0%, #0a0a0a 75%);display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:30px;";
   el.innerHTML = '<div style="font-size:110px;line-height:1;animation:splash-pop 0.8s ease-out;">🏆</div>' +
     '<h2 style="font-size:30px;margin:18px 0 10px;color:#ffd60a;">Tu as gagné !</h2>' +
-    '<p style="font-size:16px;color:#ddd;max-width:320px;line-height:1.5;">Ta photo a été tirée au sort sur le grand écran 🎉</p>';
+    '<p style="font-size:16px;color:#ddd;max-width:320px;line-height:1.5;">' + (w.kind === "race" ? "Tu as remporté la course du mini-jeu 🏁" : "Ta photo a été tirée au sort sur le grand écran 🎉") + '</p>';
   if (w.prize) {
     const prize = document.createElement("div");
     prize.style.cssText = "margin-top:18px;background:#ff4d8d;color:#fff;font-weight:800;font-size:20px;padding:14px 22px;border-radius:16px;max-width:340px;";
@@ -299,6 +338,7 @@ function checkGuestStatus() {
     if (d.suspended) showSuspendScreen(d.until);
     else if (isSuspendedNow) hideSuspendScreen();
     if (d.winner) showWinnerScreen(d.winner);
+    gameWake(d.game);
   }).catch(() => {});
 }
 checkGuestStatus();
@@ -317,6 +357,7 @@ setInterval(pingServer, 10000);
 function checkVote() {
   fetch(`${SERVER_URL}/api/fun`).then(r => r.json()).then(d => {
     if (!d.poll || !d.poll.open) return;
+    if (G.phase !== "off" && G.phase !== "signup") return; // pas pendant une course
     if (document.getElementById("preview-view").style.display === "flex") return; // photo en cours : on n'interrompt pas
     let seen = "";
     try { seen = sessionStorage.getItem("voteSeen") || ""; } catch (e) {}
@@ -512,6 +553,123 @@ document.getElementById("send-btn").addEventListener("click", async () => {
     status2.textContent = "Erreur lors de l'envoi, réessaie.";
     sendBtn.disabled = false;
   }
+});
+
+// --- Mini-jeu : inscription avec pseudo, écran joueur (taper pour avancer), écran "course en cours" pour les autres ---
+const G = { phase: "off", d: null, timer: null, sending: false, pending: 0, total: 0, myId: 0, vibrated: {} };
+const gEl = (id) => document.getElementById(id);
+function gameVibrate(p) { try { if (navigator.vibrate) navigator.vibrate(p); } catch (e) {} }
+
+function gameSchedule(ms) { clearTimeout(G.timer); G.timer = setTimeout(gamePoll, ms); }
+async function gamePoll() {
+  try {
+    const r = await fetch(`${SERVER_URL}/api/game?id=${guestId}`);
+    gameRender(await r.json());
+  } catch (e) {}
+  if (G.phase === "off") return; // plus rien à suivre : on attend le prochain signal de checkGuestStatus
+  const playing = G.d && G.d.me && G.d.me.player >= 0 && (G.phase === "countdown" || G.phase === "race");
+  gameSchedule(playing ? 400 : 1500);
+}
+function gameWake(phase) {
+  if (phase && phase !== "off" && G.phase === "off" && !G.timer) G.timer = setTimeout(gamePoll, 0);
+}
+
+function gameRender(d) {
+  G.d = d;
+  const prev = G.phase;
+  G.phase = d.phase;
+  if (d.phase === "off") G.timer = null;
+  const me = d.me || {};
+  const isPlayer = me.player >= 0;
+  // Bouton d'inscription (seulement pendant les inscriptions)
+  gEl("game-join-btn").style.display = d.phase === "signup" && !me.signedUp && !isSuspendedNow ? "block" : "none";
+  gEl("game-signed").style.display = d.phase === "signup" && me.signedUp ? "block" : "none";
+  if (me.signedUp) gEl("game-signed").textContent = "✅ Inscrit au mini-jeu : " + me.name + " · " + d.signups + " inscrit" + (d.signups > 1 ? "s" : "");
+  if (d.phase !== "signup") gEl("game-join").style.display = "none";
+
+  const scr = gEl("game-screen");
+  const active = ["countdown", "race", "result"].includes(d.phase);
+  scr.style.display = active ? "flex" : "none";
+  if (!active) { G.myId = 0; return; }
+  const offset = d.now - Date.now();
+  const left = Math.ceil((d.goAt - (Date.now() + offset)) / 1000);
+  const tap = gEl("game-tap");
+  if (isPlayer && G.vibrated[d.id + "sel"] !== true) { G.vibrated[d.id + "sel"] = true; gameVibrate([300, 120, 300]); }
+  if (!isPlayer) {
+    tap.style.display = "none";
+    gEl("game-title").textContent = d.phase === "result" ? (d.podium[0] ? "🏆 Victoire de " + d.podium[0].name + " !" : "Course terminée") : "🏁 Course en cours !";
+    gEl("game-sub").textContent = d.phase === "result" ? "Le photobooth rouvre dans quelques secondes." : "Regarde l'écran géant ! Le photobooth rouvre juste après la course.";
+    gEl("game-big").textContent = "";
+    return;
+  }
+  const p = d.players[me.player];
+  if (d.phase === "countdown") {
+    tap.style.display = "none";
+    gEl("game-title").textContent = "Tu es sélectionné ! 🏎️";
+    gEl("game-sub").textContent = "Prépare-toi, " + p.name + " ! Dès le départ, tape le plus vite possible sur l'écran.";
+    gEl("game-big").textContent = left > 0 ? left : "";
+  } else if (d.phase === "race") {
+    if (G.myId !== d.id) { G.myId = d.id; G.total = 0; G.pending = 0; gameVibrate(500); }
+    tap.style.display = "flex";
+    tap.style.background = p.color;
+    gEl("game-tap-bar").style.width = Math.min(100, (Math.max(p.taps, G.total) / d.finish) * 100) + "%";
+  } else {
+    tap.style.display = "none";
+    gEl("game-title").textContent = me.place === 1 ? "🏆 Tu as gagné la course !" : me.place ? "Tu termines " + me.place + "e ! 👏" : "Course terminée, bien joué ! 👏";
+    gEl("game-sub").textContent = d.podium[0] ? "Victoire de " + d.podium[0].name + "." : "";
+    gEl("game-big").textContent = "";
+    if (me.place === 1) checkGuestStatus();
+  }
+}
+
+// Taper pour avancer : les taps sont envoyés par paquets toutes les 200 ms
+function gameTap(n) {
+  if (G.phase !== "race") return;
+  G.pending += n;
+  G.total += n;
+  gameVibrate(15);
+  const t = gEl("game-tap");
+  t.classList.remove("hit"); void t.offsetWidth; t.classList.add("hit");
+}
+setInterval(async () => {
+  if (G.phase !== "race" || !G.pending || G.sending) return;
+  const n = G.pending;
+  G.pending = 0;
+  G.sending = true;
+  try {
+    const r = await fetch(`${SERVER_URL}/api/game/tap?id=${guestId}&n=${n}`, { method: "POST" });
+    gameRender(await r.json());
+  } catch (e) {}
+  G.sending = false;
+}, 200);
+const tapZone = document.getElementById("game-tap");
+if ("ontouchstart" in window) {
+  tapZone.addEventListener("touchstart", (e) => { e.preventDefault(); gameTap(e.changedTouches.length); }, { passive: false });
+} else {
+  tapZone.addEventListener("mousedown", () => gameTap(1));
+}
+
+// Inscription avec pseudo (10 caractères max, filtré comme les légendes)
+gEl("game-join-btn").addEventListener("click", () => {
+  gEl("game-join").style.display = "flex";
+  gEl("game-join-err").textContent = "";
+  try { gEl("game-name").value = localStorage.getItem("photobooth-pseudo") || ""; } catch (e) {}
+  gEl("game-name").focus();
+});
+gEl("game-join-cancel").addEventListener("click", () => { gEl("game-join").style.display = "none"; });
+gEl("game-join-ok").addEventListener("click", async () => {
+  const name = gEl("game-name").value.trim().slice(0, 10);
+  const err = gEl("game-join-err");
+  if (!name) { err.textContent = "Choisis un pseudo !"; return; }
+  try {
+    const r = await fetch(`${SERVER_URL}/api/game/join?id=${guestId}&name=${encodeURIComponent(name)}`, { method: "POST" });
+    const d = await r.json();
+    const msgs = { closed: "Les inscriptions sont fermées.", name_blocked: "Ce pseudo n'est pas autorisé.", name_taken: "Ce pseudo est déjà pris, choisis-en un autre.", suspended: "Ce téléphone est suspendu pour le moment.", name_empty: "Choisis un pseudo !" };
+    if (d.error) { err.textContent = msgs[d.error] || "Erreur, réessaie."; if (d.error === "name_blocked") checkGuestStatus(); return; }
+    try { localStorage.setItem("photobooth-pseudo", d.name); } catch (e) {}
+    gEl("game-join").style.display = "none";
+    gamePoll();
+  } catch (e) { err.textContent = "Erreur de connexion, réessaie."; }
 });
 </script>
 </body>
