@@ -4,12 +4,8 @@
 (function () {
   if (typeof SERVER_URL === "undefined" || typeof ADMIN_PASS === "undefined") return;
 
-  const CAR_SVG = '<svg viewBox="0 0 200 72" xmlns="http://www.w3.org/2000/svg"><g fill="currentColor" stroke="#fff" stroke-width="2" stroke-linejoin="round">' +
-    '<rect x="4" y="12" width="36" height="6" rx="2"/><rect x="15" y="18" width="4" height="14"/>' +
-    '<path d="M6 54 L6 38 L16 31 L42 29 L72 15 L106 12 L136 26 L176 33 L194 41 L197 50 L190 55 L174 55 A16 16 0 0 0 142 55 L61 55 A16 16 0 0 0 29 55 Z"/>' +
-    '<path d="M75 18 L104 15 L127 27 L77 28 Z" fill="#1a1a1a"/></g>' +
-    '<circle cx="45" cy="57" r="12" fill="#111" stroke="#fff" stroke-width="2"/><circle cx="45" cy="57" r="5" fill="#bbb"/>' +
-    '<circle cx="158" cy="57" r="12" fill="#111" stroke="#fff" stroke-width="2"/><circle cx="158" cy="57" r="5" fill="#bbb"/></svg>';
+  // Voiture : image voiture.png (à côté d'admin.html), teintée dans la couleur de chaque joueur
+  const CAR_SVG = '<img src="voiture.png" alt=""><div class="g-tint"></div><b class="g-num"></b>';
 
   const css = document.createElement("style");
   css.textContent = `
@@ -26,8 +22,10 @@
     .g-lane:nth-child(even) { background: #23232c; }
     .g-name { position: absolute; left: 16px; top: 50%; transform: translateY(-50%); width: 220px; font-size: 38px; font-weight: 900; text-transform: uppercase; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
     .g-finish { position: absolute; right: 40px; top: 0; bottom: 0; width: 24px; background: repeating-conic-gradient(#000 0 25%, #fff 0 50%) 0 0 / 24px 24px; }
-    .g-car { position: absolute; left: 0; top: 50%; width: 190px; height: 68px; margin-top: -34px; transition: transform 0.3s linear; }
-    .g-car svg { width: 100%; height: 100%; display: block; }
+    .g-car { position: absolute; left: 0; top: 50%; width: 220px; height: 66px; margin-top: -33px; transition: transform 0.3s linear; }
+    .g-car img, .g-car .g-tint { position: absolute; left: 0; top: 0; width: 100%; height: 100%; object-fit: contain; }
+    .g-car .g-num { position: absolute; left: 47%; top: 54%; transform: translate(-50%, -50%); width: 24px; height: 24px; border-radius: 50%; background: #fff; border: 2px solid #111; color: #111; font: 900 15px 'Arial Black', Arial, sans-serif; display: flex; align-items: center; justify-content: center; }
+    .g-car .g-tint { background: currentColor; -webkit-mask: url(voiture.png) center / contain no-repeat; mask: url(voiture.png) center / contain no-repeat; mix-blend-mode: multiply; }
     .g-car.lead { filter: drop-shadow(0 0 10px currentColor); }
     #game-cd { position: absolute; top: 44px; left: 250px; right: 0; bottom: 0; display: none; align-items: center; justify-content: center; gap: 60px; background: rgba(10,10,14,0.72); }
     #game-cd.show { display: flex; }
@@ -42,7 +40,7 @@
     #game-podium h2 { margin: 18px 0 10px; color: #ffd60a; font-size: 44px; letter-spacing: 3px; text-transform: uppercase; white-space: nowrap; }
     #game-steps { display: flex; align-items: flex-end; gap: 30px; }
     .g-step { width: 300px; display: flex; flex-direction: column; align-items: center; }
-    .g-step .g-car { position: static; margin: 0; transform: none; width: 160px; height: 58px; }
+    .g-step .g-car { position: relative; top: auto; margin: 0; transform: none; width: 200px; height: 60px; }
     .g-step .g-pname { font-size: 34px; font-weight: 900; text-transform: uppercase; margin: 4px 0; white-space: nowrap; }
     .g-step .g-block { width: 100%; background: linear-gradient(180deg, #3b3b48, #23232c); border: 3px solid #555; border-bottom: none; border-radius: 10px 10px 0 0; display: flex; justify-content: center; padding-top: 6px; font-size: 52px; }
     #game-banner { position: absolute; left: 0; bottom: 0; width: 460px; z-index: 33; background: rgba(0,0,0,0.82); border-top: 4px solid #ffd60a; border-right: 4px solid #ffd60a; border-radius: 0 14px 0 0; padding: 8px 14px; font-family: 'Arial Black', 'Helvetica Neue', Arial, sans-serif; display: none; }
@@ -111,6 +109,7 @@
       lane.querySelector(".g-name").textContent = p.name;
       lane.querySelector(".g-name").style.color = p.color;
       lane.querySelector(".g-car").style.color = p.color;
+      lane.querySelector(".g-num").textContent = i + 1;
       lanes.appendChild(lane);
     });
     race = { leader: -1, wasLast: {}, final: false, close: 0 };
@@ -118,7 +117,7 @@
   }
   function moveCars(d) {
     const w = layer.clientWidth || 1844;
-    const startX = 250, endX = w - 40 - 190;
+    const startX = 250, endX = w - 40 - 220;
     d.players.forEach((p, i) => {
       const car = $g("g-car-" + i);
       if (!car) return;
@@ -189,6 +188,7 @@
       step.className = "g-step";
       step.innerHTML = '<div class="g-car">' + CAR_SVG + '</div><div class="g-pname"></div><div class="g-block"></div>';
       step.querySelector(".g-car").style.color = p.color;
+      step.querySelector(".g-num").textContent = d.players.findIndex(x => x.name === p.name) + 1 || "";
       step.querySelector(".g-pname").textContent = p.name;
       step.querySelector(".g-pname").style.color = p.color;
       step.querySelector(".g-block").style.height = H[place] + "px";
